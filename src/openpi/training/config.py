@@ -6,7 +6,7 @@ import dataclasses
 import difflib
 import logging
 import pathlib
-from typing import Any, Literal, Protocol, TypeAlias
+from typing import Any, Literal, Protocol, TypeAlias, List
 
 import etils.epath as epath
 import flax.nnx as nnx
@@ -95,7 +95,7 @@ class DataConfig:
     # Action space for DROID dataset.
     action_space: droid_rlds_dataset.DroidActionSpace | None = None
     # List of datasets to sample from: name, version, weight, and optionally filter_dict_path
-    datasets: list[droid_rlds_dataset.RLDSDataset] = dataclasses.field(default_factory=[])
+    datasets: List[droid_rlds_dataset.RLDSDataset] = dataclasses.field(default_factory=[])
 
 
 class GroupFactory(Protocol):
@@ -369,7 +369,7 @@ class RLDSDroidDataConfig(DataConfigFactory):
     # f"{recording_folderpath}--{file_path}", both of which are present in the RLDS episode metadata.
 
     # List of datasets to sample from: name, version, weight, and optionally filter_dict_path
-    datasets: list[droid_rlds_dataset.RLDSDataset] = dataclasses.field(
+    datasets: List[droid_rlds_dataset.RLDSDataset] = dataclasses.field(
         default_factory=[
             droid_rlds_dataset.RLDSDataset(
                 name="droid",
