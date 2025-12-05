@@ -47,7 +47,6 @@ class DroidRldsDataset:
         num_parallel_reads: int = -1,  # -1 == tf.data.AUTOTUNE -- hack to not import tf at top level
         num_parallel_calls: int = -1,  # -1 == tf.data.AUTOTUNE -- hack to not import tf at top level
         datasets: List[RLDSDataset] = [],
-        filter_dict_paths=None,  # Path to json file with indices to sample during training
     ):
         # Import tensorflow here to not make it mandatory in case RLDS data loader is not used.
         import dlimp as dl
@@ -58,13 +57,18 @@ class DroidRldsDataset:
         tf.config.set_visible_devices([], "GPU")
 
         # Ensure dataset weights sum to 1.0
-        assert sum(weights for _, weights in datasets) == 1.0, "Weights must sum to 1.0"
+        assert sum(dataset.weight for dataset in datasets) == 1.0, "Dataset weights must sum to 1.0"
 
-        def prepare_single_dataset(dataset: RLDSDataset):
+        def prepare_single_dataset(dataset_cfg: RLDSDataset):
             # ds_name, version = dataset_name.split(":")
-            ds_name, version = dataset.name, dataset.version
+            ds_name, version = dataset_cfg.name, dataset_cfg.version
             builder = tfds.builder(ds_name, data_dir=data_dir, version=version)
             dataset = dl.DLataset.from_rlds(builder, split="train", shuffle=shuffle, num_parallel_reads=num_parallel_reads)
+
+            # Remove the broken/empty trajectories
+            dataset = dataset.filter(
+                lambda traj: tf.shape(traj["action"])[0] > 0
+            )
 
             # Filter out any unsuccessful trajectories -- we use the file name to check this
             dataset = dataset.filter(
@@ -80,7 +84,7 @@ class DroidRldsDataset:
             #     "<episode key>": [[0, 100], [200, 300]]
             # }
             # means keep frames 0-99 and 200-299).
-            filter_dict_path = dataset.filter_dict_path
+            filter_dict_path = dataset_cfg.filter_dict_path
             if filter_dict_path is not None:
                 cached_filter_dict_path = download.maybe_download(filter_dict_path)
                 with Path(cached_filter_dict_path).open("r") as f:
@@ -245,3 +249,5 @@ class DroidRldsDataset:
         # This is the approximate number of samples in DROID after filtering.
         # Easier to hardcode than to iterate through the dataset and compute it.
         return 20_000_000
+        # TODO: Should this be computed if DROID or other datasets present?
+
