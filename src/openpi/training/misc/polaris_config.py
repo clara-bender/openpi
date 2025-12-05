@@ -20,7 +20,7 @@ def get_polaris_configs():
 
     return [
         #
-        # PolaRiS DROID jointpos policies 
+        # PolaRiS DROID jointpos policies
         #
         TrainConfig(
             name="pi05_droid_jointpos",
@@ -28,7 +28,7 @@ def get_polaris_configs():
             data=SimpleDataConfig(
                 assets=AssetsConfig(asset_id="droid"),
                 data_transforms=lambda model: _transforms.Group(
-                    inputs=[droid_policy.DroidInputs(model_type=ModelType.PI05)],       # type: ignore
+                    inputs=[droid_policy.DroidInputs(model_type=ModelType.PI05)],  # type: ignore
                     outputs=[
                         _transforms.AbsoluteActions(_transforms.make_bool_mask(7, -1)),
                         droid_policy.DroidOutputs(),
@@ -36,13 +36,12 @@ def get_polaris_configs():
                 ),
             ),
         ),
-
         TrainConfig(
             name="pi0_fast_droid_jointpos",
             model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10),
             data=SimpleDataConfig(
                 assets=AssetsConfig(asset_id="droid"),
-                data_transforms=lambda model: _transforms.Group(    # type: ignore
+                data_transforms=lambda model: _transforms.Group(  # type: ignore
                     inputs=[droid_policy.DroidInputs(model_type=ModelType.PI0_FAST)],
                     outputs=[
                         _transforms.AbsoluteActions(_transforms.make_bool_mask(7, -1)),
@@ -60,7 +59,7 @@ def get_polaris_configs():
             ),
             data=SimpleDataConfig(
                 assets=AssetsConfig(asset_id="droid"),
-                data_transforms=lambda model: _transforms.Group(  
+                data_transforms=lambda model: _transforms.Group(
                     inputs=[droid_policy.DroidInputs(model_type=ModelType.PI0)],
                     outputs=[
                         _transforms.AbsoluteActions(_transforms.make_bool_mask(7, -1)),
@@ -69,12 +68,11 @@ def get_polaris_configs():
                 ),
             ),
         ),
-
         TrainConfig(
             name="paligemma_binning_droid_jointpos_fullfinetune",
             model=pi0_fast.Pi0FASTConfig(
-                action_dim=8, 
-                action_horizon=15, 
+                action_dim=8,
+                action_horizon=15,
                 max_token_len=600,
                 fast_model_tokenizer=_tokenizer.BinningTokenizer,
             ),

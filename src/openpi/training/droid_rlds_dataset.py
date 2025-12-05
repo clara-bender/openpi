@@ -5,10 +5,9 @@ Thus, we provide a data loader example here that uses the RLDS data format.
 The data loader also applies a few DROID-specific data filters / transformations.
 """
 
+import dataclasses
 from enum import Enum
 from enum import auto
-from dataclasses import dataclass
-from typing import List, Tuple
 import json
 import logging
 from pathlib import Path
@@ -24,18 +23,21 @@ class DroidActionSpace(Enum):
     JOINT_POSITION = auto()
     JOINT_VELOCITY = auto()
 
-@dataclass
+
+@dataclasses.dataclass
 class RLDSDataset:
     name: str
     version: str
     weight: float
     filter_dict_path: str | None = None
 
+
 class DroidRldsDataset:
     def __init__(
         self,
         data_dir: str,
         batch_size: int,
+        datasets: list[RLDSDataset],
         *,  # Force keyword-only arguments
         shuffle: bool = True,
         action_chunk_size: int = 16,
@@ -46,7 +48,6 @@ class DroidRldsDataset:
         shuffle_buffer_size: int = 250_000,
         num_parallel_reads: int = -1,  # -1 == tf.data.AUTOTUNE -- hack to not import tf at top level
         num_parallel_calls: int = -1,  # -1 == tf.data.AUTOTUNE -- hack to not import tf at top level
-        datasets: List[RLDSDataset] = [],
     ):
         # Import tensorflow here to not make it mandatory in case RLDS data loader is not used.
         import dlimp as dl
@@ -63,12 +64,12 @@ class DroidRldsDataset:
             # ds_name, version = dataset_name.split(":")
             ds_name, version = dataset_cfg.name, dataset_cfg.version
             builder = tfds.builder(ds_name, data_dir=data_dir, version=version)
-            dataset = dl.DLataset.from_rlds(builder, split="train", shuffle=shuffle, num_parallel_reads=num_parallel_reads)
+            dataset = dl.DLataset.from_rlds(
+                builder, split="train", shuffle=shuffle, num_parallel_reads=num_parallel_reads
+            )
 
             # Remove the broken/empty trajectories
-            dataset = dataset.filter(
-                lambda traj: tf.shape(traj["action"])[0] > 0
-            )
+            dataset = dataset.filter(lambda traj: tf.shape(traj["action"])[0] > 0)
 
             # Filter out any unsuccessful trajectories -- we use the file name to check this
             dataset = dataset.filter(
@@ -220,8 +221,7 @@ class DroidRldsDataset:
             dataset = dataset.frame_map(decode_images, num_parallel_calls)
 
             # Shuffle, batch
-            dataset = dataset.shuffle(shuffle_buffer_size)
-            return dataset
+            return dataset.shuffle(shuffle_buffer_size)
 
         print(f"Preparing {len(datasets)} datasets")
         print("-" * 50)
@@ -250,4 +250,3 @@ class DroidRldsDataset:
         # Easier to hardcode than to iterate through the dataset and compute it.
         return 20_000_000
         # TODO: Should this be computed if DROID or other datasets present?
-

@@ -94,7 +94,7 @@ class DataConfig:
     # Action space for DROID dataset.
     action_space: droid_rlds_dataset.DroidActionSpace | None = None
     # List of datasets to sample from: name, version, weight, and optionally filter_dict_path
-    datasets: List[droid_rlds_dataset.RLDSDataset] = []
+    datasets: list[droid_rlds_dataset.RLDSDataset] = dataclasses.field(default_factory=[])
 
 
 class GroupFactory(Protocol):
@@ -368,9 +368,16 @@ class RLDSDroidDataConfig(DataConfigFactory):
     # f"{recording_folderpath}--{file_path}", both of which are present in the RLDS episode metadata.
 
     # List of datasets to sample from: name, version, weight, and optionally filter_dict_path
-    datasets: List[droid_rlds_dataset.RLDSDataset] = [
-        droid_rlds_dataset.RLDSDataset(name="droid", version="1.0.1", weight=1.0, filter_dict_path="gs://openpi-assets/droid/droid_sample_ranges_v1_0_1.json"),
-    ]
+    datasets: list[droid_rlds_dataset.RLDSDataset] = dataclasses.field(
+        default_factory=[
+            droid_rlds_dataset.RLDSDataset(
+                name="droid",
+                version="1.0.1",
+                weight=1.0,
+                filter_dict_path="gs://openpi-assets/droid/droid_sample_ranges_v1_0_1.json",
+            ),
+        ]
+    )
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
