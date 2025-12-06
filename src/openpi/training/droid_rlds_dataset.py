@@ -5,6 +5,7 @@ Thus, we provide a data loader example here that uses the RLDS data format.
 The data loader also applies a few DROID-specific data filters / transformations.
 """
 
+from collections.abc import Sequence
 import dataclasses
 from enum import Enum
 from enum import auto
@@ -37,7 +38,7 @@ class DroidRldsDataset:
         self,
         data_dir: str,
         batch_size: int,
-        datasets: list[RLDSDataset],
+        datasets: Sequence[RLDSDataset],
         *,  # Force keyword-only arguments
         shuffle: bool = True,
         action_chunk_size: int = 16,
@@ -67,9 +68,6 @@ class DroidRldsDataset:
             dataset = dl.DLataset.from_rlds(
                 builder, split="train", shuffle=shuffle, num_parallel_reads=num_parallel_reads
             )
-
-            # Remove the broken/empty trajectories
-            dataset = dataset.filter(lambda traj: tf.shape(traj["action"])[0] > 0)
 
             # Filter out any unsuccessful trajectories -- we use the file name to check this
             dataset = dataset.filter(
