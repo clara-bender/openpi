@@ -192,8 +192,9 @@ def get_polaris_configs():
             keep_period=1000,
             num_workers=0,  # Important: RLDS DataLoader requires num_workers=0, handles multi-processing internally
         ),
+        # openpi doesn't support finetuning of binning policies
         TrainConfig(
-            name="paligemma_binning_droid_jointpos_fullfinetune",
+            name="paligemma_binning_droid_jointpos",
             model=pi0_fast.Pi0FASTConfig(
                 action_dim=8,
                 action_horizon=15,
