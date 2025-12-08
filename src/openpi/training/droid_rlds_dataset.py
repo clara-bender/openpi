@@ -85,10 +85,21 @@ class DroidRldsDataset:
             # means keep frames 0-99 and 200-299).
             filter_dict_path = dataset_cfg.filter_dict_path
             if filter_dict_path is not None:
+                # User provided filter dict path
                 cached_filter_dict_path = download.maybe_download(filter_dict_path)
                 with Path(cached_filter_dict_path).open("r") as f:
                     filter_dict = json.load(f)
+            else:
+                # Look for filter dict in the dataset directory if not provided
+                dataset_dir = Path(data_dir) / ds_name / version
+                filter_dict_path = dataset_dir / "nonidle_ranges.json"
+                if filter_dict_path.exists():
+                    with Path(filter_dict_path).open("r") as f:
+                        filter_dict = json.load(f)
+                else:
+                    filter_dict = None
 
+            if filter_dict is not None:
                 logging.info(f"Using filter dictionary with {len(filter_dict)} episodes")
 
                 keys_tensor = []
