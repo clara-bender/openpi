@@ -76,6 +76,9 @@ class DroidRldsDataset:
                 )
             )
 
+            # Repeat dataset so we never run out of data.
+            dataset = dataset.repeat()
+
             # Load the filter dictionary if provided.
             # The filter dictionary is a JSON file that maps episode keys to ranges of frames to sample
             # (e.g.,
@@ -216,23 +219,19 @@ class DroidRldsDataset:
                 )
                 return traj
 
-            dataset = dataset.frame_map(decode_images, num_parallel_calls)
+            return dataset.frame_map(decode_images, num_parallel_calls)
 
-            # Shuffle, batch
-            return dataset.shuffle(shuffle_buffer_size)
-
-        print(f"Preparing {len(datasets)} datasets")
-        print("-" * 50)
+        logging.info(f"Preparing {len(datasets)} datasets...")
+        logging.info("-" * 50)
         for dataset in datasets:
-            print(f"    {dataset.name}:{dataset.version} with weight {dataset.weight:.2f}")
-        print("-" * 50)
+            logging.info(f"    {dataset.name}:{dataset.version} with weight {dataset.weight:.2f}")
+        logging.info("-" * 50)
         all_datasets = [prepare_single_dataset(dataset) for dataset in datasets]
         weights = [dataset.weight for dataset in datasets]
 
         final_dataset = dl.DLataset.sample_from_datasets(all_datasets, weights=weights)
+        final_dataset = final_dataset.shuffle(shuffle_buffer_size)
         final_dataset = final_dataset.batch(batch_size)
-        # Repeat dataset so we never run out of data.
-        final_dataset = final_dataset.repeat()
         # Note =>> Seems to reduce memory usage without affecting speed?
         final_dataset = final_dataset.with_ram_budget(1)
 
@@ -247,4 +246,3 @@ class DroidRldsDataset:
         # This is the approximate number of samples in DROID after filtering.
         # Easier to hardcode than to iterate through the dataset and compute it.
         return 20_000_000
-        # TODO: Should this be computed if DROID or other datasets present?

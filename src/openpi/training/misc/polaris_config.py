@@ -27,7 +27,7 @@ def get_polaris_configs():
         # PolaRiS DROID jointpos policies
         #
         TrainConfig(
-            name="pi05_droid_jointpos_fullfinetune",
+            name="pi05_droid_jointpos_polaris",
             model=pi0_config.Pi0Config(action_horizon=15, pi05=True),
             data=RLDSDroidDataConfig(
                 assets=AssetsConfig(
@@ -67,7 +67,7 @@ def get_polaris_configs():
             num_workers=0,  # Important: RLDS DataLoader requires num_workers=0, handles multi-processing internally
         ),
         TrainConfig(
-            name="pi0_fast_droid_jointpos_fullfinetune",
+            name="pi0_fast_droid_jointpos_polaris",
             model=pi0_fast.Pi0FASTConfig(
                 action_dim=8,
                 action_horizon=10,
@@ -111,7 +111,7 @@ def get_polaris_configs():
             num_workers=0,  # Important: RLDS DataLoader requires num_workers=0, handles multi-processing internally
         ),
         TrainConfig(
-            name="pi0_droid_jointpos_fullfinetune",
+            name="pi0_droid_jointpos_polaris",
             model=pi0_config.Pi0Config(
                 # action_dim=8, # leave as 32 default...
                 action_horizon=10,
@@ -153,7 +153,7 @@ def get_polaris_configs():
             num_workers=0,  # Important: RLDS DataLoader requires num_workers=0, handles multi-processing internally
         ),
         TrainConfig(
-            name="pi0_droid_jointpos_100k_fullfinetune",
+            name="pi0_droid_jointpos_100k_polaris",
             model=pi0_config.Pi0Config(
                 # action_dim=8, # leave as 32 default...
                 action_horizon=10,
@@ -196,7 +196,7 @@ def get_polaris_configs():
             keep_period=1000,
             num_workers=0,  # Important: RLDS DataLoader requires num_workers=0, handles multi-processing internally
         ),
-        # openpi doesn't support finetuning of binning policies
+        # openpi doesn't support finetuning of binning policies, so this is an inference-only config
         TrainConfig(
             name="paligemma_binning_droid_jointpos",
             model=pi0_fast.Pi0FASTConfig(
