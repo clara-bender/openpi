@@ -31,7 +31,7 @@ def get_polaris_configs():
             model=pi0_config.Pi0Config(action_horizon=15, pi05=True),
             data=RLDSDroidDataConfig(
                 assets=AssetsConfig(
-                    assets_dir="gs://openpi-assets-simeval/pi05_droid_jointpos/assets", asset_id="droid"
+                    assets_dir="gs://openpi-assets/checkpoints/polaris/pi05_droid_jointpos_polaris/assets", asset_id="droid"
                 ),
                 datasets=(
                     droid_rlds_dataset.RLDSDataset(
@@ -44,14 +44,14 @@ def get_polaris_configs():
                         name="polaris_droid_cotrain_dataset",
                         version="1.0.0",
                         weight=0.1,
-                        filter_dict_path="[FILTER_DICT_PATH]",
+                        filter_dict_path="gs://openpi-assets/droid/polaris_droid_cotrain_dataset_sample_ranges_v1_0_0.json",
                     ),
                 ),
                 rlds_data_dir="<path_to_droid_rlds_dataset>",
                 action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
             ),
             weight_loader=weight_loaders.CheckpointWeightLoader(
-                "gs://openpi-assets-simeval/pi05_droid_jointpos/params"
+                "gs://openpi-assets/checkpoints/polaris/pi05_droid_jointpos_polaris/params"
             ),
             lr_schedule=_optimizer.CosineDecaySchedule(
                 warmup_steps=1_000,
@@ -75,7 +75,7 @@ def get_polaris_configs():
             ),
             data=RLDSDroidDataConfig(
                 assets=AssetsConfig(
-                    assets_dir="gs://openpi-assets-simeval/pi05_droid_jointpos/assets", asset_id="droid"
+                    assets_dir="gs://openpi-assets/checkpoints/polaris/pi0_fast_droid_jointpos_polaris/assets", asset_id="droid"
                 ),
                 datasets=(
                     droid_rlds_dataset.RLDSDataset(
@@ -88,14 +88,14 @@ def get_polaris_configs():
                         name="polaris_droid_cotrain_dataset",
                         version="1.0.0",
                         weight=0.1,
-                        filter_dict_path="[FILTER_DICT_PATH]",
+                        filter_dict_path="gs://openpi-assets/droid/polaris_droid_cotrain_dataset_sample_ranges_v1_0_0.json",
                     ),
                 ),
                 rlds_data_dir="<path_to_droid_rlds_dataset>",
                 action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
             ),
             weight_loader=weight_loaders.CheckpointWeightLoader(
-                "gs://openpi-assets-simeval/pi0_fast_droid_jointpos/params"
+                "gs://openpi-assets/checkpoints/polaris/pi0_fast_droid_jointpos_polaris/params"
             ),
             lr_schedule=_optimizer.CosineDecaySchedule(
                 warmup_steps=1_000,
@@ -119,7 +119,7 @@ def get_polaris_configs():
             ),
             data=RLDSDroidDataConfig(
                 assets=AssetsConfig(
-                    assets_dir="gs://openpi-assets-simeval/pi05_droid_jointpos/assets", asset_id="droid"
+                    assets_dir="gs://openpi-assets/checkpoints/polaris/pi0_droid_jointpos_polaris/assets", asset_id="droid"
                 ),
                 datasets=(
                     droid_rlds_dataset.RLDSDataset(
@@ -132,13 +132,13 @@ def get_polaris_configs():
                         name="polaris_droid_cotrain_dataset",
                         version="1.0.0",
                         weight=0.1,
-                        filter_dict_path="[FILTER_DICT_PATH]",
+                        filter_dict_path="gs://openpi-assets/droid/polaris_droid_cotrain_dataset_sample_ranges_v1_0_0.json",
                     ),
                 ),
                 rlds_data_dir="<path_to_droid_rlds_dataset>",
                 action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
             ),
-            weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-simeval/pi0_droid_jointpos/params"),
+            weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/polaris/pi0_droid_jointpos_polaris/params"),
             lr_schedule=_optimizer.CosineDecaySchedule(
                 warmup_steps=1_000,
                 peak_lr=5e-5,
@@ -161,7 +161,7 @@ def get_polaris_configs():
             ),
             data=RLDSDroidDataConfig(
                 assets=AssetsConfig(
-                    assets_dir="gs://openpi-assets-simeval/pi05_droid_jointpos/assets", asset_id="droid"
+                    assets_dir="gs://openpi-assets/checkpoints/polaris/pi0_droid_jointpos_100k_polaris/assets", asset_id="droid"
                 ),
                 datasets=(
                     droid_rlds_dataset.RLDSDataset(
@@ -174,14 +174,14 @@ def get_polaris_configs():
                         name="polaris_droid_cotrain_dataset",
                         version="1.0.0",
                         weight=0.1,
-                        filter_dict_path="[FILTER_DICT_PATH]",
+                        filter_dict_path="gs://openpi-assets/droid/polaris_droid_cotrain_dataset_sample_ranges_v1_0_0.json",
                     ),
                 ),
                 rlds_data_dir="<path_to_droid_rlds_dataset>",
                 action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
             ),
             weight_loader=weight_loaders.CheckpointWeightLoader(
-                "gs://openpi-assets-simeval/pi0_droid_jointpos_100k/params"
+                "gs://openpi-assets/checkpoints/polaris/pi0_droid_jointpos_100k_polaris/params"
             ),
             lr_schedule=_optimizer.CosineDecaySchedule(
                 warmup_steps=1_000,
