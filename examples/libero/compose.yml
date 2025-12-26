@@ -14,8 +14,10 @@ services:
     volumes:
       - $PWD:/app
       - ../../data:/data
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
     environment:
       - CLIENT_ARGS
+      - DISPLAY=$DISPLAY
       - MUJOCO_GL=${MUJOCO_GL:-egl}
       - MUJOCO_EGL_DEVICE_ID=0
       - NVIDIA_DRIVER_CAPABILITIES=all
