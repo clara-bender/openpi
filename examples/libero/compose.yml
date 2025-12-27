@@ -11,6 +11,7 @@ services:
     init: true
     tty: true
     network_mode: host
+    privileged: true
     volumes:
       - $PWD:/app
       - ../../data:/data
