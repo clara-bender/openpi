@@ -99,6 +99,8 @@ def main(config_name: str, max_frames: int | None = None):
             data_config, config.model.action_horizon, config.batch_size, config.model, config.num_workers, max_frames
         )
 
+    print(f"********************************NUM_BATCHES:{num_batches}")
+    num_batches = 1
     keys = ["state", "actions"]
     stats = {key: normalize.RunningStats() for key in keys}
 

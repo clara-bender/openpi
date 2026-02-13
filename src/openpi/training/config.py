@@ -17,6 +17,7 @@ import openpi.models.model as _model
 import openpi.models.pi0_config as pi0_config
 import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
+import openpi.policies.xarm_policy as xarm_policy
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
@@ -223,7 +224,50 @@ class SimpleDataConfig(DataConfigFactory):
             data_transforms=self.data_transforms(model_config),
             model_transforms=self.model_transforms(model_config),
         )
+    
+@dataclasses.dataclass(frozen=True)
+class LeRobotXarmDataConfig(DataConfigFactory):
+    """
+    Example data config for custom Xarm dataset in LeRobot format.
+    """
 
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation/exterior_image_1_left": "exterior_image_1_left",
+                        "observation/exterior_image_2_left": "exterior_image_2_left",
+                        "observation/wrist_image_left": "wrist_image_left",
+                        "observation/joint_position": "joint_position",
+                        "observation/gripper_position": "gripper_position",
+                        "actions": "actions",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+        # We assume joint *velocity* actions, so we should *not* apply an additional delta transform.
+        data_transforms = _transforms.Group(
+            inputs=[xarm_policy.XarmInputs(model_type=model_config.model_type)],
+            outputs=[xarm_policy.XarmOutputs()],
+        )
+        
+        delta_action_mask = _transforms.make_bool_mask(6, -1)
+        data_transforms = data_transforms.push(
+            inputs=[_transforms.DeltaActions(delta_action_mask)],
+            outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+        )
+        
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
 
 @dataclasses.dataclass(frozen=True)
 class LeRobotAlohaDataConfig(DataConfigFactory):
@@ -503,7 +547,7 @@ class TrainConfig:
     # Random seed that will be used by random generators during training.
     seed: int = 42
     # Global batch size.
-    batch_size: int = 32
+    batch_size: int = 16
     # Number of workers to use for the data loader. Increasing this number will speed up data loading but
     # will increase memory and CPU usage.
     num_workers: int = 2
@@ -561,6 +605,21 @@ _CONFIGS = [
     #
     # Inference Aloha configs.
     #
+    TrainConfig(
+        name="pi05_xarm",
+        model=pi0_config.Pi0Config(action_horizon=50, pi05=True),
+        data=LeRobotXarmDataConfig(
+            # Replace with your custom Xarm LeRobot dataset repo id.
+            repo_id="clara/xarm_pickandplace",  # just for training, locating the dataset
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig(
+                # Compute norm stats of the dataset using-> uv run scripts/compute_norm_stats.py --config-name pi05_xarm_finetune
+                # Then possibly use those norm stats and change below
+                assets_dir="/home/admin/openpi/assets/pi05_xarm/", # this might not be necessary
+                asset_id="clara/xarm_pickandplace", # for norm stats (inference and training)
+            ),
+        ),
+    ),
     TrainConfig(
         name="pi0_aloha",
         model=pi0_config.Pi0Config(),
