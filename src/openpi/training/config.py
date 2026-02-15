@@ -550,7 +550,7 @@ class TrainConfig:
     batch_size: int = 16
     # Number of workers to use for the data loader. Increasing this number will speed up data loading but
     # will increase memory and CPU usage.
-    num_workers: int = 2
+    num_workers: int = 1
     # Number of train steps (batches) to run.
     num_train_steps: int = 30_000
 
@@ -605,20 +605,65 @@ _CONFIGS = [
     #
     # Inference Aloha configs.
     #
+    # TrainConfig(
+    #     name="pi05_xarm",
+    #     model=pi0_config.Pi0Config(action_horizon=50, pi05=True, max_token_len=180),
+    #     batch_size=16,
+    #     data=LeRobotXarmDataConfig(
+    #         # Replace with your custom Xarm LeRobot dataset repo id.
+    #         repo_id="clara/xarm_pickandplace",  # just for training, locating the dataset
+    #         base_config=DataConfig(prompt_from_task=True),
+    #         assets=AssetsConfig(
+    #             # Compute norm stats of the dataset using-> uv run scripts/compute_norm_stats.py --config-name pi05_xarm_finetune
+    #             # Then possibly use those norm stats and change below
+    #             assets_dir="/home/admin/openpi/assets/pi05_xarm/", # this might not be necessary
+    #             asset_id="clara/xarm_pickandplace", # for norm stats (inference and training)
+    #         ),
+    #     ),
+    # ),
     TrainConfig(
-        name="pi05_xarm",
-        model=pi0_config.Pi0Config(action_horizon=50, pi05=True),
+        # This config is for fine-tuning pi05-Xarm on a custom Xarm dataset.
+        # Here, we use LeRobot data format (like for all other fine-tuning examples)
+        name="pi05_xarm_finetune",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=32,
+            action_horizon=50,
+            paligemma_variant="gemma_2b_lora", 
+            action_expert_variant="gemma_300m_lora"
+        ),
         data=LeRobotXarmDataConfig(
             # Replace with your custom Xarm LeRobot dataset repo id.
-            repo_id="clara/xarm_pickandplace",  # just for training, locating the dataset
+            repo_id="clara/xarm_pickandplace",  # change this
             base_config=DataConfig(prompt_from_task=True),
             assets=AssetsConfig(
-                # Compute norm stats of the dataset using-> uv run scripts/compute_norm_stats.py --config-name pi05_xarm_finetune
+                # Comput norm stats of the dataset using-> uv run scripts/compute_norm_stats.py --config-name pi05_xarm_finetune
                 # Then possibly use those norm stats and change below
                 assets_dir="/home/admin/openpi/assets/pi05_xarm/", # this might not be necessary
-                asset_id="clara/xarm_pickandplace", # for norm stats (inference and training)
+                asset_id="clara/xarm_pickandplace",
             ),
         ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"), #check this
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=8_000,
+            peak_lr=5e-5,
+            decay_steps=30_000,
+            decay_lr=5e-5,
+        ),
+        optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=32,
+            action_horizon=50,
+            paligemma_variant="gemma_2b_lora", 
+            action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
+        num_train_steps=30_000,
+        save_interval=1_000,
+        overwrite=True, #keep track of this for storage issues
+        batch_size=16,
+        wandb_enabled=True,
     ),
     TrainConfig(
         name="pi0_aloha",
