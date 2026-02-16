@@ -1,4 +1,5 @@
 import time
+import subprocess
 import sys
 import select
 import numpy as np
@@ -11,12 +12,12 @@ from pathlib import Path
 # ------------------------
 # Config
 # ------------------------
-REPO_NAME = "lars/xarm_demos_eef"
+REPO_NAME = "clara/xarm_generalpickandplace"
 FPS = 20.0
 DT = 1.0 / FPS
-ARM_IP = "192.168.1.219"
+ARM_IP = "192.168.1.222"
 
-TASK_DESCRIPTION = "Grab the yellow bottle and place it on the pink marker"
+TASK_DESCRIPTION = "Pick up the bag and place it on the blue x"
 
 START_FLAG = Path("/tmp/start_demo")
 STOP_FLAG  = Path("/tmp/stop_demo")
@@ -55,8 +56,8 @@ for serial in serials:
     configs.append(config)
 
 def read_cameras():
-    frames_wrist = pipelines[0].wait_for_frames()
-    frames_exterior = pipelines[1].wait_for_frames()
+    frames_wrist = pipelines[1].wait_for_frames()
+    frames_exterior = pipelines[0].wait_for_frames()
     wrist = frames_wrist.get_color_frame()
     exterior = frames_exterior.get_color_frame()
     wrist = np.asanyarray(wrist.get_data())
@@ -131,9 +132,11 @@ else:
 
 recording = False
 prev_data = None  # Buffer to hold the observation for time t
+frames_recorded = 0
 
 try:
     while True:
+        subprocess.Popen(["wmctrl", "-a", "Gripper Control"])
         if START_FLAG.exists() and not recording:
             START_FLAG.unlink()
             print("Starting demo")
@@ -141,19 +144,32 @@ try:
             prev_data = None # Reset buffer for new demo
 
         if STOP_FLAG.exists() and recording:
-            STOP_FLAG.unlink()
-            print("Ending demo")
-            
-            recording = False
-            prev_data = None # Clear buffer
-            resp = timed_input("Save this demo? [y/n]: ", timeout=6, default="y")
+                    if frames_recorded ==0:
+                        print("No frames recorded, skipping episode save.")
+                        STOP_FLAG.unlink()
+                    else:
+                        STOP_FLAG.unlink()
+                        recording = False
+                        time.sleep(0.2)
+                        subprocess.Popen(["wmctrl", "-a", "Visual Studio Code"])
+                        time.sleep(0.2)
+                        while True:
+                            print("Ending demo, prompting user.")
+                            choice = input(f"Demo ended with {frames_recorded} frames. Save episode? [y/n]: ").strip().lower()
+                            sys.stdout.flush()
 
-            if resp == "y":
-                dataset.save_episode()
-                print("Episode saved")
-            else:
-                dataset.reset_episode_buffer()
-                print("Episode discarded")
+                            if choice in ("y","n"):
+                                break
+
+                        if choice == "y":
+                            dataset.save_episode()
+                            print("Episode saved")
+                        else:
+                            print("Episode discarded")
+                            # HARD RESET: clears the in-memory episode buffer
+                            dataset = LeRobotDataset( root=dataset_path, repo_id=REPO_NAME, )
+                        
+                        frames_recorded = 0
 
         if not recording:
             time.sleep(0.05)
@@ -188,6 +204,7 @@ try:
                     "task": TASK_DESCRIPTION,
                 }
             )
+            frames_recorded += 1
 
         # 3. Store current observations to be paired with the next frame's state
         prev_data = {
