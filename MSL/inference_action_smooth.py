@@ -3,6 +3,7 @@ import pyrealsense2 as rs
 from xarm.wrapper import XArmAPI
 import cv2
 import time
+import threading
 
 from openpi.policies import policy_config
 from openpi.shared import download
@@ -12,7 +13,11 @@ from openpi.models.tokenizer import PaligemmaTokenizer
 FPS = 20.0
 DT = 1.0 / FPS # your timestep
 CONTROL_HZ = 40.0 # keep as a multiple of 10
-ACTION_ROLLOUT = 5
+ACTION_ROLLOUT = 40
+
+# Shared variables for threading
+next_action = None
+action_ready = threading.Event()
 
 arm = XArmAPI('192.168.1.222')
 if arm.get_state() != 0:
@@ -23,7 +28,6 @@ arm.set_mode(1)
 arm.set_state(0)
 arm.set_gripper_enable(enable=True)
 arm.set_gripper_mode(0)
-
 
 config = _config.get_config("pi05_xarm_finetune")
 checkpoint_dir = download.maybe_download("/home/admin/openpi/checkpoints/pi05_xarm_finetune/clara_training1/25000")
@@ -54,6 +58,12 @@ for serial in serials:
     pipeline.start(config)
     pipelines.append(pipeline)
     configs.append(config)
+
+def inference_thread(observation,policy):
+    global next_action
+    inference = policy.infer(observation)
+    next_action = np.array(inference["actions"])
+    action_ready.set()
 
 def get_observation():
     frames_wrist = pipelines[1].wait_for_frames()
@@ -99,23 +109,19 @@ def interpolate_action(state, goal):
         time_left = (1 / CONTROL_HZ) - (time.perf_counter() - start)
         time.sleep(max(time_left,0))
        
-while True:
 
-    observation = get_observation()
+# Do first inference before moving
+observation = get_observation()
+inference_thread(observation,policy)
+action_ready.clear()
+current_action = next_action.copy()
+rollout_count = 0
+rollout_start = 0
+first_time = True
 
-    print("Running inference")
-    inference = policy.infer(observation)
-    
-    action = np.array(inference["actions"])
-    
-    count = 0
+print(ACTION_ROLLOUT//3)
 
-    init_joints = observation["observation/joint_position"]
-    init_gripper = observation["observation/gripper_position"]
-    print("state")
-    print(init_joints)
-    
-    while count < ACTION_ROLLOUT:
+while rollout_count < ACTION_ROLLOUT:
         # grab current state
         t0 = time.perf_counter()
         pose = arm.get_position()[1]
@@ -124,21 +130,36 @@ while True:
         state = np.array(pose, dtype=np.float32)
         
         # get the target angles
-        cmd_joint_pose = np.array(action[count,:6])
+        cmd_joint_pose = np.array(current_action[rollout_count,:6])
         cmd_joint_pose[3:6] = cmd_joint_pose[3:6] / np.pi * 180
 
         # print command
         print("command")
-        print(pose)
-        print(cmd_joint_pose)
         
         # execute smooth motion to target via interpolation
         interpolate_action(state, cmd_joint_pose)
-        cmd_gripper_pose = (action[count,6]) * -860 + 850 # unnormalize the gripper action
+        cmd_gripper_pose = (current_action[rollout_count,6]) * -860 + 850 # unnormalize the gripper action
         arm.set_gripper_position(cmd_gripper_pose)
 
-        count += 1
+        if rollout_count == ACTION_ROLLOUT//3 and first_time:
+            # Start second inference in a separate thread halfway through the rollout
+            print("Started second inference")
+            observation = get_observation()
+            threading.Thread(target=inference_thread, args=(observation, policy)).start()
+            rollout_start = rollout_count
+            first_time = False
+
+        # Swap in next action if ready
+        if action_ready.is_set():
+            print("Swapping in next action")
+            current_action[0:ACTION_ROLLOUT-rollout_start] = next_action[rollout_start:ACTION_ROLLOUT]
+            action_ready.clear()
+            observation = get_observation()
+            threading.Thread(target=inference_thread, args=(observation, policy)).start()
+            rollout_start = rollout_count
+            rollout_count = -1
+
+        rollout_count += 1
         time_left = DT - (time.perf_counter() - t0)
-        
         time.sleep(max(time_left,0))
-    
+print("Exited while loop :(")

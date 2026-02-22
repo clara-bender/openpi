@@ -244,6 +244,7 @@ class LeRobotXarmDataConfig(DataConfigFactory):
                         "observation/gripper_position": "gripper_position",
                         "actions": "actions",
                         "prompt": "prompt",
+                        #"reward": "reward",
                     }
                 )
             ]
@@ -607,7 +608,7 @@ _CONFIGS = [
         # Here, we use LeRobot data format (like for all other fine-tuning examples)
         name="pi05_xarm_finetune",
         model=pi0_config.Pi0Config(
-            pi05=True,
+            pi05=True, # see where this is being used in codebase, make sure reward is passed into model corectly
             action_dim=32,
             action_horizon=50,
             paligemma_variant="gemma_2b_lora", 
