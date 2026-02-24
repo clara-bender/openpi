@@ -158,12 +158,13 @@ def guided_inference(policy,observation,action_prev,delay,time_since_last_infere
         
 # Procedure: Initialize shared state
 t = 0
-action_curr = np.zeros((PREDICTION_HORIZON,ROBOT_DOF),dtype=np.float32)
+action_curr = np.array(policy.infer(get_observation())["actions"], dtype=np.float32)  # shape (H, robot_dof)
 observation_curr = None
 
 # Procedure: Inference loop
 def inference_loop():
     global t, action_curr, observation_curr
+    mutex.acquire()
     Q = deque([delay_init], maxlen=buffer_size)  # Holds past delays
     while True:
         with condition_variable:  # wait until enough actions have been executed
@@ -175,20 +176,24 @@ def inference_loop():
             action_prev = action_curr[time_since_last_inference:PREDICTION_HORIZON].copy()
             # estimate delay conservatively
             delay = max(Q)
-
-        # Step 19: run guided inference OUTSIDE the lock
+        
+        # with M released
+        mutex.release()
+        # run guided inference
         action_new = guided_inference(policy, observation_curr, action_prev, delay, time_since_last_inference)
 
-        # Step 20-22: update shared state safely under lock
-        with mutex:
-            action_curr[:action_new.shape[0], :] = action_new  # swap in the new trajectory
-            t = t - time_since_last_inference                              # reset t for indexing into new trajectory
-            Q.append(t)                             # record the observed delay
+        # swap to new chunk as soon as it is available
+        action_curr[:action_new.shape[0], :] = action_new
+        # reset t so that it indexes into new trajectory
+        t = t - time_since_last_inference
+        # record the observed delay
+        Q.append(t)
 
 def execution_loop():
     global t, action_curr, observation_curr
 
     while True:
+        t0 = time.perf_counter()
         # 1. Get the latest observation from cameras
         observation = get_observation()
         # 2. Get the next action safely (returns a copy)
@@ -206,3 +211,12 @@ def execution_loop():
         # 6. Execute gripper action
         cmd_gripper_pose = np.clip(command[6] * -860 + 850, 0, 850)
         arm.set_gripper_position(cmd_gripper_pose)
+
+        # print command
+        print("command")
+        print(pose)
+        print(cmd_joint_pose)
+
+        time_left = DT - (time.perf_counter() - t0)
+        
+        time.sleep(max(time_left,0))
