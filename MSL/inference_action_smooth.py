@@ -4,21 +4,34 @@ from xarm.wrapper import XArmAPI
 import cv2
 import time
 import threading
+import queue
+from collections import deque
+import torch
 
 from openpi.policies import policy_config
 from openpi.shared import download
 from openpi.training import config as _config
 from openpi.models.tokenizer import PaligemmaTokenizer
 
+# User inputs
 FPS = 20.0
 DT = 1.0 / FPS # your timestep
 CONTROL_HZ = 40.0 # keep as a multiple of 10
-ACTION_ROLLOUT = 40
+PREDICTION_HORIZON = 20
+MIN_EXECUTION_HORIZON = 10
+ROBOT_DOF = 7
 
-# Shared variables for threading
-next_action = None
-action_ready = threading.Event()
+mutex = threading.Lock()
+condition_variable = threading.Condition(mutex)
+delay_init = 0
+buffer_size = 5
+trajectory_blend_steps = 10
+max_guidance_weight = 1
 
+config = _config.get_config("pi05_xarm_finetune")
+checkpoint_dir = download.maybe_download("/home/admin/openpi/checkpoints/pi05_xarm_finetune/clara_training1/25000")
+
+# XArm Setup
 arm = XArmAPI('192.168.1.222')
 if arm.get_state() != 0:
     arm.clean_error()
@@ -28,9 +41,6 @@ arm.set_mode(1)
 arm.set_state(0)
 arm.set_gripper_enable(enable=True)
 arm.set_gripper_mode(0)
-
-config = _config.get_config("pi05_xarm_finetune")
-checkpoint_dir = download.maybe_download("/home/admin/openpi/checkpoints/pi05_xarm_finetune/clara_training1/25000")
 
 # Create a trained policy.
 policy = policy_config.create_trained_policy(config, checkpoint_dir)
@@ -43,8 +53,8 @@ if len(devices) < 2:
     raise RuntimeError("Need at least two RealSense cameras connected")
 
 serials = [dev.get_info(rs.camera_info.serial_number) for dev in devices]
-print("Found cameras:", serials)
-# check serials for which camera is which, second one is currently the external viewer
+print("Found cameras:", serials) # check serials for which camera is which, second one is currently the external viewer
+
 pipelines = []
 configs = []
 
@@ -59,12 +69,7 @@ for serial in serials:
     pipelines.append(pipeline)
     configs.append(config)
 
-def inference_thread(observation,policy):
-    global next_action
-    inference = policy.infer(observation)
-    next_action = np.array(inference["actions"])
-    action_ready.set()
-
+# Functions
 def get_observation():
     frames_wrist = pipelines[1].wait_for_frames()
     frames_exterior = pipelines[0].wait_for_frames()
@@ -97,7 +102,8 @@ def interpolate_action(state, goal):
 
     for i in range(int(DT * CONTROL_HZ)):
         start = time.perf_counter()
-        command = state + delta_increment
+        state += delta_increment
+        command = state.copy()
         command[3] = (command[3]+ 180) % 360 -180
         command[5] = (command[5]+ 180) % 360 -180
 
@@ -108,58 +114,95 @@ def interpolate_action(state, goal):
 
         time_left = (1 / CONTROL_HZ) - (time.perf_counter() - start)
         time.sleep(max(time_left,0))
-       
 
-# Do first inference before moving
-observation = get_observation()
-inference_thread(observation,policy)
-action_ready.clear()
-current_action = next_action.copy()
-rollout_count = 0
-rollout_start = 0
-first_time = True
+def get_action(observation_next):
+    with mutex:
+        global t, observation_curr
+        t +=1
+        observation_curr = observation_next
+        condition_variable.notify()
+        return action_curr[t-1,:].copy()
 
-print(ACTION_ROLLOUT//3)
+def guided_inference(policy,observation,action_prev,delay,time_since_last_inference):
+    #1. Compute time-weighting W (Eq. 5 style)
+    H = PREDICTION_HORIZON
+    i = np.arange(delay, H - time_since_last_inference)
+    c = (H - time_since_last_inference - i) / (H - time_since_last_inference - delay + 1)
+    W = np.ones(H)
+    W[0:delay] = 1.0
+    W[delay:H - time_since_last_inference] = c * (np.exp(c) - 1) / (np.exp(1) - 1)
+    W[H - time_since_last_inference:] = 0.0
+    # 2. Right-pad previous trajectory
+    T, robot_dof = action_prev.shape
+    if T < H:
+        action_prev = np.pad(action_prev,((0, H - T), (0, 0)),mode='constant')
+    # 3. Compute policy chunk ONCE (π₀₅ does not depend on A or τ)
+    v_pi = np.array(policy.infer(observation)["actions"])  # shape (H, robot_dof)
+    # 4. Initialize trajectory (smooth real-time choice)
+    A = action_prev.copy()
+    # 5. Refinement loop (formerly denoising loop)
+    for tau in np.linspace(0, 1, trajectory_blend_steps):
+        # Estimated trajectory after policy push
+        action_estimate = A + (1 - tau) * v_pi
+        # Weighted correction toward previous chunk
+        weighted_error = (action_prev - action_estimate) * W[:, None]
+        # Identity Jacobian for π₀₅ → g = weighted_error
+        g = weighted_error
+        # Guidance scaling (clipped)
+        r_squared = (1 - tau)**2 / (tau**2 + (1 - tau)**2 + 1e-8)
+        scaling = min(
+            max_guidance_weight,(1 - tau) / (tau * r_squared + 1e-8))
+        # Integration step
+        A = A + (1 / trajectory_blend_steps) * (v_pi + scaling * g)
+    return A
+        
+# Procedure: Initialize shared state
+t = 0
+action_curr = np.zeros((PREDICTION_HORIZON,ROBOT_DOF),dtype=np.float32)
+observation_curr = None
 
-while rollout_count < ACTION_ROLLOUT:
-        # grab current state
-        t0 = time.perf_counter()
+# Procedure: Inference loop
+def inference_loop():
+    global t, action_curr, observation_curr
+    Q = deque([delay_init], maxlen=buffer_size)  # Holds past delays
+    while True:
+        with condition_variable:  # wait until enough actions have been executed
+            while t < MIN_EXECUTION_HORIZON:
+                condition_variable.wait()
+            # record number of executed actions since last inference
+            time_since_last_inference = t
+            # slice the remaining actions
+            action_prev = action_curr[time_since_last_inference:PREDICTION_HORIZON].copy()
+            # estimate delay conservatively
+            delay = max(Q)
+
+        # Step 19: run guided inference OUTSIDE the lock
+        action_new = guided_inference(policy, observation_curr, action_prev, delay, time_since_last_inference)
+
+        # Step 20-22: update shared state safely under lock
+        with mutex:
+            action_curr[:action_new.shape[0], :] = action_new  # swap in the new trajectory
+            t = t - time_since_last_inference                              # reset t for indexing into new trajectory
+            Q.append(t)                             # record the observed delay
+
+def execution_loop():
+    global t, action_curr, observation_curr
+
+    while True:
+        # 1. Get the latest observation from cameras
+        observation = get_observation()
+        # 2. Get the next action safely (returns a copy)
+        command = get_action(observation)
+        # 3. Split into Cartesian joints and gripper
+        cmd_joint_pose = command[:6].copy()
+        cmd_joint_pose[3:6] = cmd_joint_pose[3:6] / np.pi * 180  # radians -> degrees
+        # 4. Read current robot pose
         pose = arm.get_position()[1]
         pose[3] = pose[3] % 360
         pose[5] = pose[5] % 360
         state = np.array(pose, dtype=np.float32)
-        
-        # get the target angles
-        cmd_joint_pose = np.array(current_action[rollout_count,:6])
-        cmd_joint_pose[3:6] = cmd_joint_pose[3:6] / np.pi * 180
-
-        # print command
-        print("command")
-        
-        # execute smooth motion to target via interpolation
+        # 5. Smoothly interpolate toward target joint pose
         interpolate_action(state, cmd_joint_pose)
-        cmd_gripper_pose = (current_action[rollout_count,6]) * -860 + 850 # unnormalize the gripper action
+        # 6. Execute gripper action
+        cmd_gripper_pose = np.clip(command[6] * -860 + 850, 0, 850)
         arm.set_gripper_position(cmd_gripper_pose)
-
-        if rollout_count == ACTION_ROLLOUT//3 and first_time:
-            # Start second inference in a separate thread halfway through the rollout
-            print("Started second inference")
-            observation = get_observation()
-            threading.Thread(target=inference_thread, args=(observation, policy)).start()
-            rollout_start = rollout_count
-            first_time = False
-
-        # Swap in next action if ready
-        if action_ready.is_set():
-            print("Swapping in next action")
-            current_action[0:ACTION_ROLLOUT-rollout_start] = next_action[rollout_start:ACTION_ROLLOUT]
-            action_ready.clear()
-            observation = get_observation()
-            threading.Thread(target=inference_thread, args=(observation, policy)).start()
-            rollout_start = rollout_count
-            rollout_count = -1
-
-        rollout_count += 1
-        time_left = DT - (time.perf_counter() - t0)
-        time.sleep(max(time_left,0))
-print("Exited while loop :(")
