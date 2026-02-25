@@ -15,9 +15,9 @@ from openpi.models.tokenizer import PaligemmaTokenizer
 # =========================
 # User inputs
 # =========================
-FPS = 60.0
+FPS = 60.0 # still finding upper limit on this
 DT = 1.0 / FPS
-CONTROL_HZ = 150.0 # <=90 Hz, multiple of 10
+CONTROL_HZ = 150.0 # multiple of 10
 PREDICTION_HORIZON = 20
 MIN_EXECUTION_HORIZON = 10
 ROBOT_DOF = 7
@@ -27,8 +27,6 @@ condition_variable = threading.Condition(mutex)
 
 delay_init = 5
 buffer_size = 5
-trajectory_blend_steps = 10
-max_guidance_weight = 1
 
 
 # =========================
@@ -59,7 +57,7 @@ arm.set_gripper_mode(0)
 
 
 # =========================
-# RealSense Setup
+# RealSense Camera Setup
 # =========================
 ctx = rs.context()
 devices = ctx.query_devices()
@@ -115,11 +113,14 @@ def get_observation():
 
     return observation
 
+# =========================
+# Command Interpolation
+# =========================
 def interpolate_action(state, goal):
     delta_increment = (goal - state) / (DT * CONTROL_HZ * 6)
 
     for i in range(int(DT * CONTROL_HZ)):
-        start = time.perf_counter()
+        start_time = time.perf_counter()
         state += delta_increment
         command = state.copy()
         command[3] = (command[3]+ 180) % 360 -180
@@ -131,8 +132,24 @@ def interpolate_action(state, goal):
 
         arm.set_servo_cartesian(command, speed=100, mvacc=1000)
 
-        time_left = (1 / CONTROL_HZ) - (time.perf_counter() - start)
+        time_left = (1 / CONTROL_HZ) - (time.perf_counter() - start_time)
         time.sleep(max(time_left,0))
+
+# =========================
+# Action Getter
+# =========================
+def get_action(observation_next):
+    global t, observation_curr
+
+    with condition_variable:
+        t += 1
+
+        observation_curr = observation_next
+        condition_variable.notify()
+
+        action = action_curr[t - 1, :].copy()
+
+    return action
 
 # =========================
 # Guided Inference
@@ -158,14 +175,6 @@ def guided_inference(policy, observation, action_prev, delay, time_since_last_in
     action_estimate = A*W[:,None] + v_pi*(1-W[:, None])
 
     return action_estimate[:H, :ROBOT_DOF]
-
-
-# =========================
-# Shared State
-# =========================
-t = 0
-observation_curr = get_observation()
-action_curr = np.array(policy.infer(observation_curr)["actions"], dtype=np.float32)
 
 
 # =========================
@@ -207,23 +216,6 @@ def inference_loop():
 
 
 # =========================
-# Safe Action Getter
-# =========================
-def get_action(observation_next):
-    global t, observation_curr
-
-    with condition_variable:
-        t += 1
-
-        observation_curr = observation_next
-        condition_variable.notify()
-
-        action = action_curr[t - 1, :].copy()
-
-    return action
-
-
-# =========================
 # Execution Loop
 # =========================
 def execution_loop():
@@ -257,6 +249,13 @@ def execution_loop():
         time_left = DT - (time.perf_counter() - t0)
         time.sleep(max(time_left, 0))
 
+
+# =========================
+# Shared State
+# =========================
+t = 0
+observation_curr = get_observation()
+action_curr = np.array(policy.infer(observation_curr)["actions"], dtype=np.float32)
 
 # =========================
 # Thread Startup
