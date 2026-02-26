@@ -41,7 +41,7 @@ class InferenceCollector:
         # =========================
         # Collection inputs
         # =========================
-        self.REPO_NAME = "clara/xarm_generalpickandplace"
+        self.REPO_NAME = "clara/inference_collection"
         FPS_COLLECT = 20.0
         self.DT_COLLECT = 1.0 / FPS_COLLECT # multiple of 10
         ARM_IP = "192.168.1.222"
@@ -72,10 +72,13 @@ class InferenceCollector:
         self.frames_recorded = 0
         self.prev_data = None
 
+        self.latest_wrist_frame = None      # For live display
+        self.latest_tripod_frame = None      # For live display
+        self.recorded_wrist_frames = []     # For post-run playback
+        self.recorded_tripod_frames = []     # For post-run playback
+        self.playback_index = 0
 
-        self.infer_thread = threading.Thread(target=self.inference_loop, daemon=True)
-        self.exec_thread = threading.Thread(target=self.execution_loop, daemon=True)
-        self.collect_thread = threading.Thread(target=self.collection_loop, daemon=True)
+        self.stop = threading.Event()
 
         # =========================
         # GUI Setup
@@ -90,7 +93,7 @@ class InferenceCollector:
         tk.Button(root, text="Stop", command=self.stop_demo).pack(side="right")
 
         root.protocol("WM_DELETE_WINDOW", self.on_close)
-
+        self.update_gui()  # Start the GUI update loop
         # =========================
         # XArm Setup
         # =========================
@@ -116,7 +119,7 @@ class InferenceCollector:
             pipeline = rs.pipeline()
             config_rs = rs.config()
             config_rs.enable_device(serial)
-            config_rs.enable_stream(rs.stream.color, 320, 240, rs.format.rgb8, 30) # check these values...
+            config_rs.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30) # check these values...
             pipeline.start(config_rs)
             self.pipelines.append(pipeline)
             self.configs.append(config_rs)
@@ -125,11 +128,11 @@ class InferenceCollector:
         # Data Collection Setup
         # =========================
 
-        dataset_path = HF_LEROBOT_HOME / self.REPO_NAME
+        self.dataset_path = HF_LEROBOT_HOME / self.REPO_NAME
 
-        if dataset_path.exists(): 
+        if self.dataset_path.exists(): 
             self.dataset = LeRobotDataset(
-                root=dataset_path,
+                root=self.dataset_path,
                 repo_id=self.REPO_NAME,
             )
             print("Adding to existing dataset, waiting for signal.")
@@ -218,20 +221,28 @@ class InferenceCollector:
         exterior = np.asanyarray(exterior.get_data())
         exterior2 = np.zeros_like(exterior)
 
-        self.display(self.label_1, wrist)
-        self.display(self.label_2, exterior)
-
         return wrist, exterior, exterior2
     
     # =========================
     # Display Camera Images on GUI
     # =========================
-    def display(self, label, frame):
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        img = Image.fromarray(frame_rgb)
-        imgtk = ImageTk.PhotoImage(image=img)
-        label.imgtk = imgtk
-        label.configure(image=imgtk)
+    def update_gui(self):
+        if self.latest_wrist_frame is not None:
+            frame_1 = self.latest_wrist_frame
+            frame_2 = self.latest_tripod_frame
+
+            img_1 = Image.fromarray(frame_1)
+            imgtk_1 = ImageTk.PhotoImage(image=img_1)
+
+            img_2 = Image.fromarray(frame_2)
+            imgtk_2 = ImageTk.PhotoImage(image=img_2)
+
+            self.label_1.imgtk = imgtk_1  # prevent garbage collection
+            self.label_1.configure(image=imgtk_1)
+            self.label_2.imgtk = imgtk_2  # prevent garbage collection
+            self.label_2.configure(image=imgtk_2)
+
+        self.root.after(30, self.update_gui)  # ~30 FPS
 
     # =========================
     # Command Interpolation
@@ -302,10 +313,16 @@ class InferenceCollector:
 
         Q = deque([self.delay_init], maxlen=self.buffer_size)
 
-        while True:
+        while not self.stop.is_set():
             with self.condition_variable:
-                while self.t < self.MIN_EXECUTION_HORIZON:
-                    self.condition_variable.wait()
+                while (
+                    self.t < self.MIN_EXECUTION_HORIZON
+                    and not self.stop.is_set()
+                ):
+                    self.condition_variable.wait(timeout=0.1)
+
+                if self.stop.is_set():
+                    break
 
                 time_since_last_inference = self.t
                 # Remove actions that have already been executed
@@ -337,7 +354,7 @@ class InferenceCollector:
     # =========================
     def execution_loop(self):
         
-        while True:
+        while not self.stop.is_set():
             print("t:", self.t)
             t0 = time.perf_counter()
 
@@ -358,9 +375,9 @@ class InferenceCollector:
             print(cmd_joint_pose)
 
             # execute smooth motion to target via interpolation
-            # self.interpolate_action(state, cmd_joint_pose)
-            # cmd_gripper_pose = (command[6]) * -860 + 850 # unnormalize the gripper action
-            # self.arm.set_gripper_position(cmd_gripper_pose)
+            self.interpolate_action(state, cmd_joint_pose)
+            cmd_gripper_pose = (command[6]) * -860 + 850 # unnormalize the gripper action
+            self.arm.set_gripper_position(cmd_gripper_pose)
 
             time_left = self.DT - (time.perf_counter() - t0)
             time.sleep(max(time_left, 0))
@@ -369,7 +386,8 @@ class InferenceCollector:
     # Collection Loop
     # =========================
     def collection_loop(self):
-        while True:
+        while not self.stop.is_set():
+            print("Collection loop running")
             
             start = time.perf_counter()
 
@@ -387,6 +405,13 @@ class InferenceCollector:
             
             wrist, base, base2 = self.read_cameras()
 
+            # Save latest frame for GUI (thread-safe shallow swap)
+            self.latest_wrist_frame = wrist.copy()
+            self.latest_tripod_frame = base.copy()
+
+            # Save for playback after stop
+            self.recorded_wrist_frames.append(wrist.copy())
+            self.recorded_tripod_frames.append(base.copy())
             # 2. If we have a previous observation, record it with CURRENT state as the action
             if self.prev_data is not None:
                 self.dataset.add_frame(
@@ -419,33 +444,41 @@ class InferenceCollector:
     # Start Demo
     # =========================
     def start_demo(self):
+        print("Starting demo")
+        self.stop.clear()
+        self.prev_data = None
+
+        self.infer_thread = threading.Thread(target=self.inference_loop,daemon=True)
+        self.exec_thread = threading.Thread(target=self.execution_loop,daemon=True)
+        self.collect_thread = threading.Thread(target=self.collection_loop,daemon=True)
 
         self.observation_curr = self.get_observation()
         self.action_curr = np.array(self.policy.infer(self.observation_curr)["actions"], dtype=np.float32)
-
         self.infer_thread.start()
         self.exec_thread.start()
         self.collect_thread.start()
-        self.inferring = True
         self.prev_data = None
 
     # =========================
     # End Demo
     # =========================
     def stop_demo(self):
-        self.inferring = False
+        self.stop.set()
+        self.infer_thread.join()
+        self.exec_thread.join()
+        self.collect_thread.join()
         time.sleep(0.1)
         answer = messagebox.askyesno(
             "Save Episode",
             "Would you like to save this episode?"
         )
         if answer:
-            dataset.save_episode()
+            self.dataset.save_episode()
             print("Episode saved")
         else:
             print("Episode discarded")
             # HARD RESET: clears the in-memory episode buffer
-            dataset = LeRobotDataset( root=self.dataset_path, repo_id=self.REPO_NAME, )
+            self.dataset = LeRobotDataset( root=self.dataset_path, repo_id=self.REPO_NAME, )
         
         self.frames_recorded = 0
         self.t = 0
@@ -455,9 +488,10 @@ class InferenceCollector:
             self.inferring = False
             self.pipeline[0].stop()
             self.pipeline[1].stop()
-            self.infer_thread.stop()
-            self.exec_thread.stop()
-            self.collect_thread.stop()
+            self.stop.set()
+            self.infer_thread.join()
+            self.exec_thread.join()
+            self.collect_thread.join()
 
             self.root.destroy()
 
