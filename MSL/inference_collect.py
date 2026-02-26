@@ -74,9 +74,13 @@ class InferenceCollector:
 
         self.latest_wrist_frame = None      # For live display
         self.latest_tripod_frame = None      # For live display
-        self.recorded_wrist_frames = []     # For post-run playback
-        self.recorded_tripod_frames = []     # For post-run playback
+        self.recorded_frames = []             # For playback after stopping demo
         self.playback_index = 0
+        self.mode = "LIVE"
+        self.GRIPPER_EPSILON = 0.05
+        self.JOINT_EPSILON = 5.0 # degrees
+        self.reward = 1
+        self.last_gripper_pos = 0.0
 
         self.stop = threading.Event()
 
@@ -91,6 +95,8 @@ class InferenceCollector:
 
         tk.Button(root, text="Start", command=self.start_demo).pack(side="left")
         tk.Button(root, text="Stop", command=self.stop_demo).pack(side="right")
+        self.info_label = tk.Label(root, text="", font=("Arial", 12))
+        self.info_label.pack(side="bottom")
 
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.update_gui()  # Start the GUI update loop
@@ -227,22 +233,32 @@ class InferenceCollector:
     # Display Camera Images on GUI
     # =========================
     def update_gui(self):
-        if self.latest_wrist_frame is not None:
-            frame_1 = self.latest_wrist_frame
-            frame_2 = self.latest_tripod_frame
+        if self.mode == "LIVE":
+            if self.latest_wrist_frame is not None:
+                frame_1 = self.latest_wrist_frame
+                frame_2 = self.latest_tripod_frame
+            else:
+                self.root.after(self.FPS_COLLECT, self.update_gui)
+                return
+        elif self.mode == "PLAYBACK":
+            if len(self.recorded_wrist_frames) == 0:
+                return
+            frame_1, frame_2, info = self.recorded_frames[self.playback_index]
+            info_text = f"""Reward: {info['reward']:.2f} | Gripper Change: {info['gripper_change']:.2f} | Joint Change: {info['joint_change']:.2f}"""
+            self.info_label.configure(text=info_text)
 
-            img_1 = Image.fromarray(frame_1)
-            imgtk_1 = ImageTk.PhotoImage(image=img_1)
+        img_1 = Image.fromarray(frame_1)
+        imgtk_1 = ImageTk.PhotoImage(image=img_1)
 
-            img_2 = Image.fromarray(frame_2)
-            imgtk_2 = ImageTk.PhotoImage(image=img_2)
+        img_2 = Image.fromarray(frame_2)
+        imgtk_2 = ImageTk.PhotoImage(image=img_2)
 
-            self.label_1.imgtk = imgtk_1  # prevent garbage collection
-            self.label_1.configure(image=imgtk_1)
-            self.label_2.imgtk = imgtk_2  # prevent garbage collection
-            self.label_2.configure(image=imgtk_2)
+        self.label_1.imgtk = imgtk_1  # prevent garbage collection
+        self.label_1.configure(image=imgtk_1)
+        self.label_2.imgtk = imgtk_2  # prevent garbage collection
+        self.label_2.configure(image=imgtk_2)
 
-        self.root.after(30, self.update_gui)  # ~30 FPS
+        self.root.after(self.FPS_COLLECT, self.update_gui)  # ~20 FPS
 
     # =========================
     # Command Interpolation
@@ -331,7 +347,7 @@ class InferenceCollector:
                 ].copy() 
 
                 delay = max(Q)
-                print("Delay: ", delay)
+                # print("Delay: ", delay)
                 obs = self.observation_curr.copy()
 
             # ---- lock released ----
@@ -369,15 +385,26 @@ class InferenceCollector:
             pose[5] = pose[5] % 360
             state = np.array(pose, dtype=np.float32)
 
-            print("Current pose:")
-            print(pose)
-            print("Command pose:")
-            print(cmd_joint_pose)
+            # print("Current pose:")
+            # print(pose)
+            # print("Command pose:")
+            # print(cmd_joint_pose)
 
             # execute smooth motion to target via interpolation
             self.interpolate_action(state, cmd_joint_pose)
             cmd_gripper_pose = (command[6]) * -860 + 850 # unnormalize the gripper action
             self.arm.set_gripper_position(cmd_gripper_pose)
+
+            gripper_change = abs(cmd_gripper_pose - self.last_gripper_pos)
+            self.last_gripper_pos = cmd_gripper_pose
+
+            joint_change = np.linalg.norm(cmd_joint_pose - state[:6])
+            print("gripper change:", gripper_change)
+            print("joint change:", joint_change)
+            if gripper_change < self.GRIPPER_EPSILON and joint_change < self.JOINT_EPSILON:
+                self.reward = 0
+            else:
+                self.reward = 1
 
             time_left = self.DT - (time.perf_counter() - t0)
             time.sleep(max(time_left, 0))
@@ -387,8 +414,6 @@ class InferenceCollector:
     # =========================
     def collection_loop(self):
         while not self.stop.is_set():
-            print("Collection loop running")
-            
             start = time.perf_counter()
 
             # 1. Capture CURRENT state (Time t+1 relative to prev_data)
@@ -409,9 +434,12 @@ class InferenceCollector:
             self.latest_wrist_frame = wrist.copy()
             self.latest_tripod_frame = base.copy()
 
-            # Save for playback after stop
-            self.recorded_wrist_frames.append(wrist.copy())
-            self.recorded_tripod_frames.append(base.copy())
+            self.recorded_frames.append((wrist.copy(), base.copy(),
+                                         {"reward": self.reward, 
+                                          "gripper_change": self.gripper_change, 
+                                          "joint_change": self.joint_change
+                                          }))
+
             # 2. If we have a previous observation, record it with CURRENT state as the action
             if self.prev_data is not None:
                 self.dataset.add_frame(
@@ -423,6 +451,7 @@ class InferenceCollector:
                         "exterior_image_2_left": self.prev_data["base2"],
                         "wrist_image_left": self.prev_data["wrist"],
                         "task": self.TASK_DESCRIPTION,
+                        "reward": self.reward,
                     }
                 )
                 self.frames_recorded += 1
@@ -433,7 +462,8 @@ class InferenceCollector:
                 "gripper": curr_state[-1:],
                 "wrist": wrist,
                 "base": base,
-                "base2": base2
+                "base2": base2,
+                "reward": self.reward
             }
 
             # ---- Timing ----
@@ -464,6 +494,7 @@ class InferenceCollector:
     # =========================
     def stop_demo(self):
         self.stop.set()
+        self.mode = "PLAYBACK"
         self.infer_thread.join()
         self.exec_thread.join()
         self.collect_thread.join()
@@ -483,6 +514,7 @@ class InferenceCollector:
         self.frames_recorded = 0
         self.t = 0
         self.go_home()
+
 
     def on_close(self):
             self.inferring = False
