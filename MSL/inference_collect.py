@@ -42,8 +42,8 @@ class InferenceCollector:
         # Collection inputs
         # =========================
         self.REPO_NAME = "clara/inference_collection"
-        FPS_COLLECT = 20.0
-        self.DT_COLLECT = 1.0 / FPS_COLLECT # multiple of 10
+        self.FPS_COLLECT = 20
+        self.DT_COLLECT = 1.0 / self.FPS_COLLECT # multiple of 10
         ARM_IP = "192.168.1.222"
 
         self.TASK_DESCRIPTION = "Pick up the bag and place it on the blue x"
@@ -68,7 +68,6 @@ class InferenceCollector:
         self.t = 0
         self.observation_curr = None
         self.action_curr = np.zeros((self.PREDICTION_HORIZON, self.ROBOT_DOF), dtype=np.float32)
-        self.inferring = False
         self.frames_recorded = 0
         self.prev_data = None
 
@@ -77,8 +76,10 @@ class InferenceCollector:
         self.recorded_frames = []             # For playback after stopping demo
         self.playback_index = 0
         self.mode = "LIVE"
-        self.GRIPPER_EPSILON = 0.05
-        self.JOINT_EPSILON = 5.0 # degrees
+        self.gripper_change = 0.0
+        self.joint_change = 0.0
+        self.GRIPPER_EPSILON = 5.0
+        self.JOINT_EPSILON = 2.0 # degrees
         self.reward = 1
         self.last_gripper_pos = 0.0
 
@@ -97,6 +98,15 @@ class InferenceCollector:
         tk.Button(root, text="Stop", command=self.stop_demo).pack(side="right")
         self.info_label = tk.Label(root, text="", font=("Arial", 12))
         self.info_label.pack(side="bottom")
+        self.playback_slider = tk.Scale(
+            self.root,
+            from_=0,
+            to=0,  # will update later when frames are loaded
+            orient=tk.HORIZONTAL,
+            label="Playback Frame",
+            command=self.on_slider_move
+        )
+        self.playback_slider.pack(fill="x")
 
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.update_gui()  # Start the GUI update loop
@@ -146,7 +156,7 @@ class InferenceCollector:
             self.dataset = LeRobotDataset.create(
                 repo_id=self.REPO_NAME,
                 robot_type="xarm",
-                fps=FPS_COLLECT,
+                fps=self.FPS_COLLECT,
                 features={
                     "exterior_image_1_left": {
                         "dtype": "image",
@@ -232,6 +242,9 @@ class InferenceCollector:
     # =========================
     # Display Camera Images on GUI
     # =========================
+
+    def on_slider_move(self, value):
+        self.playback_index = int(value)
     def update_gui(self):
         if self.mode == "LIVE":
             if self.latest_wrist_frame is not None:
@@ -241,7 +254,7 @@ class InferenceCollector:
                 self.root.after(self.FPS_COLLECT, self.update_gui)
                 return
         elif self.mode == "PLAYBACK":
-            if len(self.recorded_wrist_frames) == 0:
+            if len(self.recorded_frames) == 0:
                 return
             frame_1, frame_2, info = self.recorded_frames[self.playback_index]
             info_text = f"""Reward: {info['reward']:.2f} | Gripper Change: {info['gripper_change']:.2f} | Joint Change: {info['joint_change']:.2f}"""
@@ -371,7 +384,7 @@ class InferenceCollector:
     def execution_loop(self):
         
         while not self.stop.is_set():
-            print("t:", self.t)
+            # print("t:", self.t)
             t0 = time.perf_counter()
 
             observation = self.get_observation()
@@ -385,23 +398,22 @@ class InferenceCollector:
             pose[5] = pose[5] % 360
             state = np.array(pose, dtype=np.float32)
 
-            # print("Current pose:")
-            # print(pose)
-            # print("Command pose:")
-            # print(cmd_joint_pose)
+            print("Current pose:")
+            print(pose)
+            print("Command pose:")
+            print(cmd_joint_pose)
 
             # execute smooth motion to target via interpolation
             self.interpolate_action(state, cmd_joint_pose)
             cmd_gripper_pose = (command[6]) * -860 + 850 # unnormalize the gripper action
             self.arm.set_gripper_position(cmd_gripper_pose)
 
-            gripper_change = abs(cmd_gripper_pose - self.last_gripper_pos)
+            self.gripper_change = abs(cmd_gripper_pose - self.last_gripper_pos)
+            self.joint_change = np.linalg.norm(cmd_joint_pose - state[:6])
+
             self.last_gripper_pos = cmd_gripper_pose
 
-            joint_change = np.linalg.norm(cmd_joint_pose - state[:6])
-            print("gripper change:", gripper_change)
-            print("joint change:", joint_change)
-            if gripper_change < self.GRIPPER_EPSILON and joint_change < self.JOINT_EPSILON:
+            if self.gripper_change < self.GRIPPER_EPSILON and self.joint_change < self.JOINT_EPSILON:
                 self.reward = 0
             else:
                 self.reward = 1
@@ -451,7 +463,6 @@ class InferenceCollector:
                         "exterior_image_2_left": self.prev_data["base2"],
                         "wrist_image_left": self.prev_data["wrist"],
                         "task": self.TASK_DESCRIPTION,
-                        "reward": self.reward,
                     }
                 )
                 self.frames_recorded += 1
@@ -477,6 +488,10 @@ class InferenceCollector:
         print("Starting demo")
         self.stop.clear()
         self.prev_data = None
+        self.t = 0
+        self.frames_recorded = 0
+        self.mode = "LIVE"
+        self.recorded_frames = []
 
         self.infer_thread = threading.Thread(target=self.inference_loop,daemon=True)
         self.exec_thread = threading.Thread(target=self.execution_loop,daemon=True)
@@ -495,6 +510,7 @@ class InferenceCollector:
     def stop_demo(self):
         self.stop.set()
         self.mode = "PLAYBACK"
+        self.playback_slider.config(to=len(self.recorded_frames) - 1)
         self.infer_thread.join()
         self.exec_thread.join()
         self.collect_thread.join()
@@ -517,9 +533,6 @@ class InferenceCollector:
 
 
     def on_close(self):
-            self.inferring = False
-            self.pipeline[0].stop()
-            self.pipeline[1].stop()
             self.stop.set()
             self.infer_thread.join()
             self.exec_thread.join()
