@@ -1,0 +1,149 @@
+Collecting augmax
+  Using cached augmax-0.4.1-py3-none-any.whl.metadata (2.9 kB)
+Collecting beartype==0.19.0
+  Using cached beartype-0.19.0-py3-none-any.whl.metadata (32 kB)
+Collecting dm-tree
+  Using cached dm_tree-0.1.9-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.2 kB)
+Collecting equinox
+  Using cached equinox-0.13.4-py3-none-any.whl.metadata (19 kB)
+Collecting flatbuffers
+  Using cached flatbuffers-25.12.19-py2.py3-none-any.whl.metadata (1.0 kB)
+Collecting gym-aloha
+  Using cached gym_aloha-0.1.3-py3-none-any.whl.metadata (7.2 kB)
+Collecting ml-collections==1.0.0
+  Using cached ml_collections-1.0.0-py3-none-any.whl.metadata (22 kB)
+Collecting numpydantic
+  Using cached numpydantic-1.7.0-py3-none-any.whl.metadata (17 kB)
+Collecting opencv-python
+  Using cached opencv_python-4.13.0.92-cp37-abi3-manylinux_2_28_x86_64.whl.metadata (19 kB)
+Collecting polars
+  Using cached polars-1.38.1-py3-none-any.whl.metadata (10 kB)
+Collecting pyrealsense2
+  Using cached pyrealsense2-2.56.5.9235-cp311-cp311-manylinux1_x86_64.whl.metadata (1.9 kB)
+Collecting sentencepiece
+  Using cached sentencepiece-0.2.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (10 kB)
+Collecting tqdm-loggable
+  Using cached tqdm_loggable-0.3-py3-none-any.whl.metadata (9.4 kB)
+Collecting transformers==4.53.2
+  Using cached transformers-4.53.2-py3-none-any.whl.metadata (40 kB)
+Collecting tyro
+  Using cached tyro-1.0.6-py3-none-any.whl.metadata (12 kB)
+Collecting xarm
+  Using cached xarm-0.0.4-py3-none-any.whl.metadata (12 kB)
+Collecting xarm-python-sdk
+  Using cached xarm_python_sdk-1.17.3-py3-none-any.whl.metadata (3.1 kB)
+Requirement already satisfied: absl-py in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from ml-collections==1.0.0) (2.4.0)
+Requirement already satisfied: six in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from ml-collections==1.0.0) (1.17.0)
+Requirement already satisfied: PyYAML in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from ml-collections==1.0.0) (6.0.3)
+Requirement already satisfied: filelock in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from transformers==4.53.2) (3.24.2)
+Requirement already satisfied: huggingface-hub<1.0,>=0.30.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from transformers==4.53.2) (0.35.3)
+Requirement already satisfied: numpy>=1.17 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from transformers==4.53.2) (2.2.6)
+Requirement already satisfied: packaging>=20.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from transformers==4.53.2) (25.0)
+Requirement already satisfied: regex!=2019.12.17 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from transformers==4.53.2) (2026.1.15)
+Requirement already satisfied: requests in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from transformers==4.53.2) (2.32.5)
+Collecting tokenizers<0.22,>=0.21 (from transformers==4.53.2)
+  Using cached tokenizers-0.21.4-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.7 kB)
+Requirement already satisfied: safetensors>=0.4.3 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from transformers==4.53.2) (0.7.0)
+Requirement already satisfied: tqdm>=4.27 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from transformers==4.53.2) (4.67.3)
+Requirement already satisfied: fsspec>=2023.5.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from huggingface-hub<1.0,>=0.30.0->transformers==4.53.2) (2025.9.0)
+Requirement already satisfied: typing-extensions>=3.7.4.3 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from huggingface-hub<1.0,>=0.30.0->transformers==4.53.2) (4.15.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.1.3 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from huggingface-hub<1.0,>=0.30.0->transformers==4.53.2) (1.2.0)
+Requirement already satisfied: einops>=0.3 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from augmax) (0.8.2)
+Requirement already satisfied: jax>=0.1 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from augmax) (0.9.0.1)
+Requirement already satisfied: attrs>=18.2.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from dm-tree) (25.4.0)
+Collecting wrapt>=1.11.2 (from dm-tree)
+  Using cached wrapt-2.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (7.4 kB)
+Requirement already satisfied: jaxtyping>=0.2.20 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from equinox) (0.3.8)
+Requirement already satisfied: wadler-lindig>=0.1.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from equinox) (0.1.7)
+Collecting dm-control>=1.0.15 (from gym-aloha)
+  Using cached dm_control-1.0.37-py3-none-any.whl.metadata (1.5 kB)
+Requirement already satisfied: gymnasium>=0.29.1 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from gym-aloha) (1.2.3)
+Requirement already satisfied: imageio>=2.34.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from imageio[ffmpeg]>=2.34.0->gym-aloha) (2.37.2)
+Collecting mujoco>=3.0.0 (from gym-aloha)
+  Using cached mujoco-3.5.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (42 kB)
+Requirement already satisfied: pydantic>=2.7.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from numpydantic) (2.12.5)
+Collecting polars-runtime-32==1.38.1 (from polars)
+  Using cached polars_runtime_32-1.38.1-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (1.5 kB)
+Collecting docstring-parser>=0.15 (from tyro)
+  Using cached docstring_parser-0.17.0-py3-none-any.whl.metadata (3.5 kB)
+Collecting typeguard>=4.0.0 (from tyro)
+  Using cached typeguard-4.5.0-py3-none-any.whl.metadata (3.8 kB)
+Collecting dm-env (from dm-control>=1.0.15->gym-aloha)
+  Using cached dm_env-1.6-py3-none-any.whl.metadata (966 bytes)
+Collecting glfw (from dm-control>=1.0.15->gym-aloha)
+  Using cached glfw-2.10.0-py2.py27.py3.py30.py31.py32.py33.py34.py35.py36.py37.py38.py39.py310.py311.py312.py313.py314-none-manylinux_2_28_x86_64.whl.metadata (5.4 kB)
+Collecting labmaze (from dm-control>=1.0.15->gym-aloha)
+  Using cached labmaze-1.0.6-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (278 bytes)
+Collecting lxml (from dm-control>=1.0.15->gym-aloha)
+  Using cached lxml-6.0.2-cp311-cp311-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl.metadata (3.6 kB)
+Requirement already satisfied: protobuf>=3.19.4 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from dm-control>=1.0.15->gym-aloha) (6.33.5)
+Collecting pyopengl>=3.1.4 (from dm-control>=1.0.15->gym-aloha)
+  Using cached pyopengl-3.1.10-py3-none-any.whl.metadata (3.3 kB)
+Collecting pyparsing>=3.0.0 (from dm-control>=1.0.15->gym-aloha)
+  Using cached pyparsing-3.3.2-py3-none-any.whl.metadata (5.8 kB)
+Requirement already satisfied: setuptools!=50.0.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from dm-control>=1.0.15->gym-aloha) (80.10.2)
+Requirement already satisfied: scipy in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from dm-control>=1.0.15->gym-aloha) (1.17.0)
+Requirement already satisfied: cloudpickle>=1.2.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from gymnasium>=0.29.1->gym-aloha) (3.1.2)
+Requirement already satisfied: farama-notifications>=0.0.1 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from gymnasium>=0.29.1->gym-aloha) (0.0.4)
+Requirement already satisfied: pillow>=8.3.2 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from imageio>=2.34.0->imageio[ffmpeg]>=2.34.0->gym-aloha) (12.1.1)
+Requirement already satisfied: imageio-ffmpeg in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from imageio[ffmpeg]>=2.34.0->gym-aloha) (0.6.0)
+Requirement already satisfied: psutil in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from imageio[ffmpeg]>=2.34.0->gym-aloha) (7.2.2)
+Requirement already satisfied: jaxlib<=0.9.0.1,>=0.9.0.1 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from jax>=0.1->augmax) (0.9.0.1)
+Requirement already satisfied: ml_dtypes>=0.5.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from jax>=0.1->augmax) (0.5.4)
+Requirement already satisfied: opt_einsum in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from jax>=0.1->augmax) (3.4.0)
+Requirement already satisfied: etils[epath] in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from mujoco>=3.0.0->gym-aloha) (1.13.0)
+Requirement already satisfied: annotated-types>=0.6.0 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from pydantic>=2.7.0->numpydantic) (0.7.0)
+Requirement already satisfied: pydantic-core==2.41.5 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from pydantic>=2.7.0->numpydantic) (2.41.5)
+Requirement already satisfied: typing-inspection>=0.4.2 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from pydantic>=2.7.0->numpydantic) (0.4.2)
+Requirement already satisfied: importlib_resources in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from etils[epath]->mujoco>=3.0.0->gym-aloha) (6.5.2)
+Requirement already satisfied: zipp in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from etils[epath]->mujoco>=3.0.0->gym-aloha) (3.23.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from requests->transformers==4.53.2) (3.4.4)
+Requirement already satisfied: idna<4,>=2.5 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from requests->transformers==4.53.2) (3.11)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from requests->transformers==4.53.2) (2.6.3)
+Requirement already satisfied: certifi>=2017.4.17 in /home/csbender/.conda/envs/csbender-openpi-env/lib/python3.11/site-packages (from requests->transformers==4.53.2) (2026.1.4)
+Downloading beartype-0.19.0-py3-none-any.whl (1.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.0/1.0 MB 44.1 MB/s  0:00:00
+Downloading ml_collections-1.0.0-py3-none-any.whl (76 kB)
+Downloading transformers-4.53.2-py3-none-any.whl (10.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.8/10.8 MB 38.8 MB/s  0:00:00
+Downloading tokenizers-0.21.4-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.1/3.1 MB 44.8 MB/s  0:00:00
+Downloading augmax-0.4.1-py3-none-any.whl (17 kB)
+Downloading dm_tree-0.1.9-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (152 kB)
+Downloading equinox-0.13.4-py3-none-any.whl (181 kB)
+Downloading flatbuffers-25.12.19-py2.py3-none-any.whl (26 kB)
+Downloading gym_aloha-0.1.3-py3-none-any.whl (447 kB)
+Downloading numpydantic-1.7.0-py3-none-any.whl (86 kB)
+Downloading opencv_python-4.13.0.92-cp37-abi3-manylinux_2_28_x86_64.whl (72.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 72.9/72.9 MB 38.7 MB/s  0:00:01
+Downloading polars-1.38.1-py3-none-any.whl (810 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 810.4/810.4 kB 38.4 MB/s  0:00:00
+Downloading polars_runtime_32-1.38.1-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (45.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.8/45.8 MB 35.2 MB/s  0:00:01
+Downloading pyrealsense2-2.56.5.9235-cp311-cp311-manylinux1_x86_64.whl (11.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 11.1/11.1 MB 43.7 MB/s  0:00:00
+Downloading sentencepiece-0.2.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (1.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.4/1.4 MB 36.6 MB/s  0:00:00
+Downloading tqdm_loggable-0.3-py3-none-any.whl (9.4 kB)
+Downloading tyro-1.0.6-py3-none-any.whl (181 kB)
+Downloading xarm-0.0.4-py3-none-any.whl (9.2 kB)
+Downloading xarm_python_sdk-1.17.3-py3-none-any.whl (186 kB)
+Downloading dm_control-1.0.37-py3-none-any.whl (56.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 56.4/56.4 MB 33.9 MB/s  0:00:01
+Downloading docstring_parser-0.17.0-py3-none-any.whl (36 kB)
+Downloading mujoco-3.5.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (7.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 7.1/7.1 MB 44.2 MB/s  0:00:00
+Downloading pyopengl-3.1.10-py3-none-any.whl (3.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.2/3.2 MB 38.0 MB/s  0:00:00
+Downloading pyparsing-3.3.2-py3-none-any.whl (122 kB)
+Downloading typeguard-4.5.0-py3-none-any.whl (36 kB)
+Downloading wrapt-2.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (113 kB)
+Downloading dm_env-1.6-py3-none-any.whl (26 kB)
+Downloading glfw-2.10.0-py2.py27.py3.py30.py31.py32.py33.py34.py35.py36.py37.py38.py39.py310.py311.py312.py313.py314-none-manylinux_2_28_x86_64.whl (243 kB)
+Downloading labmaze-1.0.6-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (4.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.9/4.9 MB 36.4 MB/s  0:00:00
+Downloading lxml-6.0.2-cp311-cp311-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl (5.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.2/5.2 MB 40.6 MB/s  0:00:00
+Installing collected packages: pyopengl, glfw, flatbuffers, xarm-python-sdk, xarm, wrapt, typeguard, tqdm-loggable, sentencepiece, pyrealsense2, pyparsing, polars-runtime-32, opencv-python, ml-collections, lxml, labmaze, docstring-parser, beartype, tyro, polars, dm-tree, tokenizers, numpydantic, mujoco, dm-env, transformers, equinox, dm-control, augmax, gym-aloha
+
+Successfully installed augmax-0.4.1 beartype-0.19.0 dm-control-1.0.37 dm-env-1.6 dm-tree-0.1.9 docstring-parser-0.17.0 equinox-0.13.4 flatbuffers-25.12.19 glfw-2.10.0 gym-aloha-0.1.3 labmaze-1.0.6 lxml-6.0.2 ml-collections-1.0.0 mujoco-3.5.0 numpydantic-1.7.0 opencv-python-4.13.0.92 polars-1.38.1 polars-runtime-32-1.38.1 pyopengl-3.1.10 pyparsing-3.3.2 pyrealsense2-2.56.5.9235 sentencepiece-0.2.1 tokenizers-0.21.4 tqdm-loggable-0.3 transformers-4.53.2 typeguard-4.5.0 tyro-1.0.6 wrapt-2.1.1 xarm-0.0.4 xarm-python-sdk-1.17.3

@@ -12,12 +12,27 @@ from openpi.models.tokenizer import PaligemmaTokenizer
 FPS = 20.0
 DT = 1.0 / FPS # your timestep
 CONTROL_HZ = 40.0 # keep as a multiple of 10
-ACTION_ROLLOUT = 5
+ACTION_ROLLOUT = 20
 
 arm = XArmAPI('192.168.1.222')
 if arm.get_state() != 0:
     arm.clean_error()
     time.sleep(0.5)
+arm.motion_enable(enable=True)
+arm.set_mode(1)
+arm.set_state(0)
+arm.set_gripper_enable(enable=True)
+arm.set_gripper_mode(0)
+
+arm.motion_enable(enable=True)
+arm.set_mode(0)
+arm.set_gripper_enable(enable=True)
+arm.set_gripper_mode(0)
+arm.set_state(0)
+cmd_joint_pose = [0.0, -90.4, -24.0, 0.0, 61.3, 180.0] 
+cmd_gripper_pose = 850.0
+arm.set_servo_angle(servo_id=8, angle=cmd_joint_pose, is_radian=False, wait=True) 
+arm.set_gripper_position(cmd_gripper_pose, wait=True)
 arm.motion_enable(enable=True)
 arm.set_mode(1)
 arm.set_state(0)
@@ -92,7 +107,7 @@ def interpolate_action(state, goal):
         command[5] = (command[5]+ 180) % 360 -180
 
         x, y, z, roll, pitch, yaw = command
-        print(x, y, z, roll, pitch, yaw)
+        # print(x, y, z, roll, pitch, yaw)
 
         arm.set_servo_cartesian(command, speed=100, mvacc=1000)
 
@@ -127,10 +142,10 @@ while True:
         cmd_joint_pose = np.array(action[count,:6])
         cmd_joint_pose[3:6] = cmd_joint_pose[3:6] / np.pi * 180
 
-        # print command
-        print("command")
-        print(pose)
-        print(cmd_joint_pose)
+        # # print command
+        # print("command")
+        # print(pose)
+        # print(cmd_joint_pose)
         
         # execute smooth motion to target via interpolation
         interpolate_action(state, cmd_joint_pose)
@@ -139,6 +154,8 @@ while True:
 
         count += 1
         time_left = DT - (time.perf_counter() - t0)
+
+        print(time_left)
         
         time.sleep(max(time_left,0))
     

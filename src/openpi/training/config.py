@@ -18,9 +18,6 @@ import openpi.models.pi0_config as pi0_config
 import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
 import openpi.policies.xarm_policy as xarm_policy
-import openpi.policies.aloha_policy as aloha_policy
-import openpi.policies.droid_policy as droid_policy
-import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -237,14 +234,14 @@ class LeRobotXarmDataConfig(DataConfigFactory):
             inputs=[
                 _transforms.RepackTransform(
                     {
-                        "observation/exterior_image_1_left": "exterior_image_1_left",
-                        "observation/exterior_image_2_left": "exterior_image_2_left",
-                        "observation/wrist_image_left": "wrist_image_left",
-                        "observation/joint_position": "joint_position",
+                        "observation/exterior_image_1_left": "robot_camera",
+                        "observation/exterior_image_2_left": "extra_camera",
+                        "observation/wrist_image_left": "hand_camera",
+                        "observation/joint_position": "eef_position",
                         "observation/gripper_position": "gripper_position",
                         "actions": "actions",
-                        "prompt": "prompt",
-                        #"reward": "reward",
+                        "prompt": "task",
+
                     }
                 )
             ]
@@ -255,7 +252,7 @@ class LeRobotXarmDataConfig(DataConfigFactory):
             outputs=[xarm_policy.XarmOutputs()],
         )
         
-        delta_action_mask = _transforms.make_bool_mask(6, -1)
+        delta_action_mask = _transforms.make_bool_mask(4)
         data_transforms = data_transforms.push(
             inputs=[_transforms.DeltaActions(delta_action_mask)],
             outputs=[_transforms.AbsoluteActions(delta_action_mask)],
@@ -381,7 +378,7 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
         # LIBERO already represents actions as deltas, but we have some old Pi0 checkpoints that are trained with this
         # extra delta transform.
         if self.extra_delta_transform:
-            delta_action_mask = _transforms.make_bool_mask(6, -1)
+            delta_action_mask = _transforms.make_bool_mask(-7) # (6, -1)
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
                 outputs=[_transforms.AbsoluteActions(delta_action_mask)],
@@ -616,20 +613,20 @@ _CONFIGS = [
         ),
         data=LeRobotXarmDataConfig(
             # Replace with your custom Xarm LeRobot dataset repo id.
-            repo_id="clara/xarm_generalpickandplace",  # change this
+            repo_id="clara/follow_hand_no_delay_reduced_actions",  # change this
             base_config=DataConfig(prompt_from_task=True),
             assets=AssetsConfig(
                 # Comput norm stats of the dataset using-> uv run scripts/compute_norm_stats.py --config-name pi05_xarm_finetune
                 # Then possibly use those norm stats and change below
                 assets_dir="/home/admin/openpi/assets/pi05_xarm_finetune/", # this might not be necessary
-                asset_id="clara/xarm_generalpickandplace",
+                asset_id="clara/follow_hand_no_delay_reduced_actions",
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"), #check this
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=8_000,
             peak_lr=5e-5,
-            decay_steps=30_000,
+            decay_steps=25_000,
             decay_lr=5e-5,
         ),
         optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
@@ -641,7 +638,7 @@ _CONFIGS = [
             action_expert_variant="gemma_300m_lora"
         ).get_freeze_filter(),
         ema_decay=None,
-        num_train_steps=30_000,
+        num_train_steps=25_000,
         save_interval=1_000,
         overwrite=True, #keep track of this for storage issues
         batch_size=16,
@@ -664,5 +661,6 @@ def get_config(config_name: str) -> TrainConfig:
         closest = difflib.get_close_matches(config_name, _CONFIGS_DICT.keys(), n=1, cutoff=0.0)
         closest_str = f" Did you mean '{closest[0]}'? " if closest else ""
         raise ValueError(f"Config '{config_name}' not found.{closest_str}")
+    
 
     return _CONFIGS_DICT[config_name]

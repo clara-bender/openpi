@@ -1,7 +1,6 @@
 import numpy as np
 import pyrealsense2 as rs
 from xarm.wrapper import XArmAPI
-import cv2
 import time
 import threading
 from collections import deque
@@ -9,15 +8,13 @@ from collections import deque
 from openpi.policies import policy_config
 from openpi.shared import download
 from openpi.training import config as _config
-from openpi.models.tokenizer import PaligemmaTokenizer
-
 
 # =========================
 # User inputs
 # =========================
-FPS = 60.0 # still finding upper limit on this
+FPS = 20.0 # still finding upper limit on this
 DT = 1.0 / FPS
-CONTROL_HZ = 150.0 # multiple of 10
+CONTROL_HZ = 140.0 # multiple of 10
 PREDICTION_HORIZON = 20
 MIN_EXECUTION_HORIZON = 10
 ROBOT_DOF = 7
@@ -33,6 +30,9 @@ buffer_size = 5
 # Policy Setup
 # =========================
 config = _config.get_config("pi05_xarm_finetune")
+
+asset_id = config.data.assets.asset_id
+print("*****************************************************Asset dir:", asset_id)
 checkpoint_dir = download.maybe_download(
     "/home/admin/openpi/checkpoints/pi05_xarm_finetune/clara_training1/25000"
 )
@@ -49,6 +49,22 @@ if arm.get_state() != 0:
     arm.clean_error()
     time.sleep(0.5)
 
+arm.motion_enable(enable=True)
+arm.set_mode(1)
+arm.set_state(0)
+arm.set_gripper_enable(enable=True)
+arm.set_gripper_mode(0)
+
+
+arm.motion_enable(enable=True)
+arm.set_mode(0)
+arm.set_gripper_enable(enable=True)
+arm.set_gripper_mode(0)
+arm.set_state(0)
+cmd_joint_pose = [0.0, -90.4, -24.0, 0.0, 61.3, 180.0] 
+cmd_gripper_pose = 850.0
+arm.set_servo_angle(servo_id=8, angle=cmd_joint_pose, is_radian=False, wait=True) 
+arm.set_gripper_position(cmd_gripper_pose, wait=True)
 arm.motion_enable(enable=True)
 arm.set_mode(1)
 arm.set_state(0)
@@ -100,6 +116,8 @@ def get_observation():
     angles_rad = (np.array(pose[3:6]) * np.pi / 180).tolist()
     state = np.array(pose[:3] + angles_rad, dtype=np.float32)
 
+    print("Observation state:", state)
+
     _, g_p = arm.get_gripper_position()
     g_p = np.array((g_p - 850) / -860)
 
@@ -126,9 +144,11 @@ def interpolate_action(state, goal):
         command[3] = (command[3]+ 180) % 360 -180
         command[5] = (command[5]+ 180) % 360 -180
 
-        x, y, z, roll, pitch, yaw = command
-        print("Interpolation:")
-        print(x, y, z, roll, pitch, yaw)
+        print("Command:", command)
+
+        # x, y, z, roll, pitch, yaw = command
+        # print("Interpolation:")
+        # print(x, y, z, roll, pitch, yaw)
 
         arm.set_servo_cartesian(command, speed=100, mvacc=1000)
 
@@ -236,10 +256,8 @@ def execution_loop():
         pose[5] = pose[5] % 360
         state = np.array(pose, dtype=np.float32)
 
-        print("Current pose:")
-        print(pose)
-        print("Command pose:")
-        print(cmd_joint_pose)
+        print("Current state:", state)
+        print("Command pose:", cmd_joint_pose)
 
         # execute smooth motion to target via interpolation
         interpolate_action(state, cmd_joint_pose)
@@ -247,6 +265,7 @@ def execution_loop():
         arm.set_gripper_position(cmd_gripper_pose)
 
         time_left = DT - (time.perf_counter() - t0)
+        print(time_left)
         time.sleep(max(time_left, 0))
 
 

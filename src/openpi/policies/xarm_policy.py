@@ -43,16 +43,17 @@ class XarmInputs(transforms.DataTransformFn):
         # stores as float32 (C,H,W), gets skipped for policy inference
         base_image = _parse_image(data["observation/exterior_image_1_left"])
         wrist_image = _parse_image(data["observation/wrist_image_left"])
+        extra_image = _parse_image(data["observation/exterior_image_2_left"])
 
         match self.model_type:
             case _model.ModelType.PI0 | _model.ModelType.PI05:
                 names = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
-                images = (base_image, wrist_image, np.zeros_like(base_image))
-                image_masks = (np.True_, np.True_, np.False_)
+                images = (base_image, wrist_image, extra_image)
+                image_masks = (np.True_, np.True_, np.True_)
             case _model.ModelType.PI0_FAST:
                 names = ("base_0_rgb", "base_1_rgb", "wrist_0_rgb")
                 # We don't mask out padding images for FAST models.
-                images = (base_image, np.zeros_like(base_image), wrist_image)
+                images = (base_image, extra_image, wrist_image)
                 image_masks = (np.True_, np.True_, np.True_)
             case _:
                 raise ValueError(f"Unsupported model type: {self.model_type}")
@@ -82,7 +83,7 @@ class XarmInputs(transforms.DataTransformFn):
 @dataclasses.dataclass(frozen=True)
 class XarmOutputs(transforms.DataTransformFn):
     def __call__(self, data: dict) -> dict:
-        # Only return the first 7 dims.
-        return {"actions": np.asarray(data["actions"][:, :7])
+        # Only return the first 4 dims.
+        return {"actions": np.asarray(data["actions"][:, :4])
         #"text_tokens": data["text_tokens"],
         }
