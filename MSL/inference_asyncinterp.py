@@ -9,15 +9,17 @@ from openpi.policies import policy_config
 from openpi.shared import download
 from openpi.training import config as _config
 
+from camera import Camera
+
 # =========================
 # User inputs
 # =========================
-FPS = 20.0 # still finding upper limit on this
+FPS = 30.0 # still finding upper limit on this
 DT = 1.0 / FPS
-CONTROL_HZ = 140.0 # multiple of 10
+CONTROL_HZ = 50.0 # multiple of 10
 PREDICTION_HORIZON = 20
 MIN_EXECUTION_HORIZON = 10
-ROBOT_DOF = 7
+ROBOT_DOF = 4
 
 mutex = threading.Lock()
 condition_variable = threading.Condition(mutex)
@@ -34,7 +36,7 @@ config = _config.get_config("pi05_xarm_finetune")
 asset_id = config.data.assets.asset_id
 print("*****************************************************Asset dir:", asset_id)
 checkpoint_dir = download.maybe_download(
-    "/home/admin/openpi/checkpoints/pi05_xarm_finetune/clara_training1/25000"
+    "/home/admin/new/src/openpi/checkpoints/pi05_xarm_finetune/t_follow_hand_delay_reduced_actions_352/24999"
 )
 
 policy = policy_config.create_trained_policy(config, checkpoint_dir)
@@ -56,77 +58,60 @@ arm.set_gripper_enable(enable=True)
 arm.set_gripper_mode(0)
 
 
-arm.motion_enable(enable=True)
-arm.set_mode(0)
-arm.set_gripper_enable(enable=True)
-arm.set_gripper_mode(0)
-arm.set_state(0)
-cmd_joint_pose = [0.0, -90.4, -24.0, 0.0, 61.3, 180.0] 
-cmd_gripper_pose = 850.0
-arm.set_servo_angle(servo_id=8, angle=cmd_joint_pose, is_radian=False, wait=True) 
-arm.set_gripper_position(cmd_gripper_pose, wait=True)
-arm.motion_enable(enable=True)
-arm.set_mode(1)
-arm.set_state(0)
-arm.set_gripper_enable(enable=True)
-arm.set_gripper_mode(0)
+# arm.motion_enable(enable=True)
+# arm.set_mode(0)
+# arm.set_gripper_enable(enable=True)
+# arm.set_gripper_mode(0)
+# arm.set_state(0)
+# cmd_joint_pose = [0.0, -90.4, -24.0, 0.0, 61.3, 180.0] 
+# cmd_gripper_pose = 850.0
+# arm.set_servo_angle(servo_id=8, angle=cmd_joint_pose, is_radian=False, wait=True) 
+# arm.set_gripper_position(cmd_gripper_pose, wait=True)
+# arm.motion_enable(enable=True)
+# arm.set_mode(1)
+# arm.set_state(0)
+# arm.set_gripper_enable(enable=True)
+# arm.set_gripper_mode(0)
 
 
 # =========================
 # RealSense Camera Setup
 # =========================
-ctx = rs.context()
-devices = ctx.query_devices()
+HAND_CAMERA_SERIAL = "317222072257"
+ROBOT_CAMERA_SERIAL = "243522071742"
+WIDTH, HEIGHT, FPS = 640, 480, 60
 
-if len(devices) < 2:
-    raise RuntimeError("Need at least two RealSense cameras connected")
-
-serials = [dev.get_info(rs.camera_info.serial_number) for dev in devices]
-print("Found cameras:", serials)
-
-pipelines = []
-configs = []
-
-for serial in serials:
-    pipeline = rs.pipeline()
-    config_rs = rs.config()
-    config_rs.enable_device(serial)
-    config_rs.enable_stream(rs.stream.color, 320, 240, rs.format.rgb8, 30)
-    pipeline.start(config_rs)
-    pipelines.append(pipeline)
-    configs.append(config_rs)
+hand_camera = Camera(HAND_CAMERA_SERIAL, WIDTH, HEIGHT, FPS)
+time.sleep(3)
+robot_camera = Camera(ROBOT_CAMERA_SERIAL, WIDTH, HEIGHT, FPS)
+time.sleep(3)
 
 
 # =========================
 # Observation
 # =========================
 def get_observation():
-    frames_wrist = pipelines[1].wait_for_frames()
-    frames_exterior = pipelines[0].wait_for_frames()
-
-    wrist = frames_wrist.get_color_frame()
-    exterior = frames_exterior.get_color_frame()
-
-    a = np.asanyarray(wrist.get_data())
-    b = np.asanyarray(exterior.get_data())
+    hand_img, depth_img = hand_camera.get_image(True)
+    robot_img, _ = robot_camera.get_image(False)
 
     pose = arm.get_position()[1]
     pose[3] = pose[3] % 360
     pose[5] = pose[5] % 360
     angles_rad = (np.array(pose[3:6]) * np.pi / 180).tolist()
-    state = np.array(pose[:3] + angles_rad, dtype=np.float32)
+    state = np.array(pose[:3], dtype=np.float32)
 
-    print("Observation state:", state)
+    # print("Observation state:", state)
 
     _, g_p = arm.get_gripper_position()
     g_p = np.array((g_p - 850) / -860)
 
     observation = {
-        "observation/exterior_image_1_left": b,
-        "observation/wrist_image_left": a,
+        "observation/exterior_image_1_left": robot_img,
+        "observation/exterior_image_2_left": depth_img,
+        "observation/wrist_image_left": hand_img,
         "observation/gripper_position": g_p,
         "observation/joint_position": state,
-        "prompt": "Pick up the bag and place it on the blue x",
+        "prompt": "Follow the hand",
     }
 
     return observation
@@ -141,16 +126,18 @@ def interpolate_action(state, goal):
         start_time = time.perf_counter()
         state += delta_increment
         command = state.copy()
-        command[3] = (command[3]+ 180) % 360 -180
-        command[5] = (command[5]+ 180) % 360 -180
+        # command[3] = (command[3]+ 180) % 360 -180
+        # command[5] = (command[5]+ 180) % 360 -180
 
-        print("Command:", command)
+        # print("Command:", command)
 
         # x, y, z, roll, pitch, yaw = command
         # print("Interpolation:")
         # print(x, y, z, roll, pitch, yaw)
 
-        arm.set_servo_cartesian(command, speed=100, mvacc=1000)
+        command = np.concatenate((command, np.array([180, 0, 0])))
+
+        # arm.set_servo_cartesian(command, speed=100, mvacc=1000)
 
         time_left = (1 / CONTROL_HZ) - (time.perf_counter() - start_time)
         time.sleep(max(time_left,0))
@@ -189,7 +176,8 @@ def guided_inference(policy, observation, action_prev, delay, time_since_last_in
         action_prev = np.pad(action_prev, ((0, H - T), (0, 0)), mode='constant')
 
     v_pi = np.array(policy.infer(observation)["actions"])
-    v_pi = v_pi[:H, :ROBOT_DOF]  # ensure correct shape
+    print(f"POLICY SIZE: {v_pi.shape}")
+    # v_pi = v_pi[:H, :ROBOT_DOF]  # ensure correct shape
 
     A = action_prev.copy()
     action_estimate = A*W[:,None] + v_pi*(1-W[:, None])
@@ -242,30 +230,30 @@ def execution_loop():
     global t
     
     while True:
-        print("t:", t)
+        # print("t:", t)
         t0 = time.perf_counter()
 
         observation = get_observation()
         command = get_action(observation)
 
-        cmd_joint_pose = command[:6].copy()
-        cmd_joint_pose[3:6] = cmd_joint_pose[3:6] / np.pi * 180
+        cmd_joint_pose = command[:3].copy()
+        # cmd_joint_pose[3:6] = cmd_joint_pose[3:6] / np.pi * 180
 
         pose = arm.get_position()[1]
         pose[3] = pose[3] % 360
         pose[5] = pose[5] % 360
-        state = np.array(pose, dtype=np.float32)
+        state = np.array(pose[0:3], dtype=np.float32)
 
-        print("Current state:", state)
-        print("Command pose:", cmd_joint_pose)
+        # print("Current state:", state)
+        # print("Command pose:", cmd_joint_pose)
 
         # execute smooth motion to target via interpolation
         interpolate_action(state, cmd_joint_pose)
         cmd_gripper_pose = (command[6]) * -860 + 850 # unnormalize the gripper action
-        arm.set_gripper_position(cmd_gripper_pose)
+        # arm.set_gripper_position(cmd_gripper_pose)
 
         time_left = DT - (time.perf_counter() - t0)
-        print(time_left)
+        # print(time_left)
         time.sleep(max(time_left, 0))
 
 

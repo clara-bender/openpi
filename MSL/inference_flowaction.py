@@ -13,23 +13,27 @@ from openpi.shared import download
 from openpi.training import config as _config
 from openpi.models.tokenizer import PaligemmaTokenizer
 
+import time
+from camera import Camera
+
 # User inputs
 FPS = 20.0
 DT = 1.0 / FPS # your timestep
-CONTROL_HZ = 40.0 # keep as a multiple of 10
+CONTROL_HZ = 50.0 # keep as a multiple of 10
 PREDICTION_HORIZON = 20
 MIN_EXECUTION_HORIZON = 10
-ROBOT_DOF = 7
+ROBOT_DOF = 4
+TASK = "Follow the hand"
 
 mutex = threading.Lock()
 condition_variable = threading.Condition(mutex)
-delay_init = 0
+delay_init = 5
 buffer_size = 5
 trajectory_blend_steps = 10
 max_guidance_weight = 1
 
 config = _config.get_config("pi05_xarm_finetune")
-checkpoint_dir = download.maybe_download("/home/admin/openpi/checkpoints/pi05_xarm_finetune/clara_training1/25000")
+checkpoint_dir = download.maybe_download("/home/admin/new/src/openpi/checkpoints/pi05_xarm_finetune/t_follow_hand_delay_reduced_actions_352/24999")
 
 # XArm Setup
 arm = XArmAPI('192.168.1.222')
@@ -46,54 +50,35 @@ arm.set_gripper_mode(0)
 policy = policy_config.create_trained_policy(config, checkpoint_dir)
 
 # Connect to cameras
-ctx = rs.context()
-devices = ctx.query_devices()
+HAND_CAMERA_SERIAL = "317222072257"
+ROBOT_CAMERA_SERIAL = "243522071742"
+WIDTH, HEIGHT, FPS = 640, 480, 60
 
-if len(devices) < 2:
-    raise RuntimeError("Need at least two RealSense cameras connected")
-
-serials = [dev.get_info(rs.camera_info.serial_number) for dev in devices]
-print("Found cameras:", serials) # check serials for which camera is which, second one is currently the external viewer
-
-pipelines = []
-configs = []
-
-# Enable streams
-for serial in serials:
-    pipeline = rs.pipeline()
-    config = rs.config()
-    config.enable_device(serial)
-    # Enable streams (color + depth if you want)
-    config.enable_stream(rs.stream.color, 320, 240, rs.format.rgb8, 30)
-    pipeline.start(config)
-    pipelines.append(pipeline)
-    configs.append(config)
+hand_camera = Camera(HAND_CAMERA_SERIAL, WIDTH, HEIGHT, FPS)
+time.sleep(3)
+robot_camera = Camera(ROBOT_CAMERA_SERIAL, WIDTH, HEIGHT, FPS)
+time.sleep(3)
 
 # Functions
 def get_observation():
-    frames_wrist = pipelines[1].wait_for_frames()
-    frames_exterior = pipelines[0].wait_for_frames()
-
-    wrist = frames_wrist.get_color_frame()
-    exterior = frames_exterior.get_color_frame()
-
-    a = np.asanyarray(wrist.get_data())
-    b = np.asanyarray(exterior.get_data())
+    hand_img, depth_img = hand_camera.get_image(True)
+    robot_img, _ = robot_camera.get_image(False)
 
     pose = arm.get_position()[1]
     pose[3] = pose[3] % 360
     pose[5] = pose[5] % 360
     angles_rad = (np.array(pose[3:6]) * np.pi / 180).tolist()
-    state = np.array(pose[:3] + angles_rad, dtype=np.float32)
+    state = np.array(pose[:3], dtype=np.float32)
     code, g_p = arm.get_gripper_position()
     g_p = np.array((g_p - 850) / -860)
 
     observation = {
-        "observation/exterior_image_1_left": b,
-        "observation/wrist_image_left": a,
+        "observation/exterior_image_1_left": robot_img,
+        "observation/exterior_image_2_left": depth_img,
+        "observation/wrist_image_left": hand_img,
         "observation/gripper_position": g_p,
         "observation/joint_position": state,
-        "prompt": "Pick up the bag and place it on the blue x",
+        "prompt": TASK,
     }
     return observation
 
@@ -104,11 +89,13 @@ def interpolate_action(state, goal):
         start = time.perf_counter()
         state += delta_increment
         command = state.copy()
-        command[3] = (command[3]+ 180) % 360 -180
-        command[5] = (command[5]+ 180) % 360 -180
+        # command[3] = (command[3]+ 180) % 360 -180
+        # command[5] = (command[5]+ 180) % 360 -180
 
-        x, y, z, roll, pitch, yaw = command
-        print(x, y, z, roll, pitch, yaw)
+        # x, y, z, roll, pitch, yaw = command
+        # print(x, y, z, roll, pitch, yaw)
+
+        command = np.concatenate((command, np.array([180, 0, 0])))
 
         arm.set_servo_cartesian(command, speed=100, mvacc=1000)
 
@@ -138,6 +125,7 @@ def guided_inference(policy,observation,action_prev,delay,time_since_last_infere
         action_prev = np.pad(action_prev,((0, H - T), (0, 0)),mode='constant')
     # 3. Compute policy chunk ONCE (π₀₅ does not depend on A or τ)
     v_pi = np.array(policy.infer(observation)["actions"])  # shape (H, robot_dof)
+    print(f"INFERENCE SIZE: {v_pi.size}")
     # 4. Initialize trajectory (smooth real-time choice)
     A = action_prev.copy()
     # 5. Refinement loop (formerly denoising loop)
@@ -199,8 +187,8 @@ def execution_loop():
         # 2. Get the next action safely (returns a copy)
         command = get_action(observation)
         # 3. Split into Cartesian joints and gripper
-        cmd_joint_pose = command[:6].copy()
-        cmd_joint_pose[3:6] = cmd_joint_pose[3:6] / np.pi * 180  # radians -> degrees
+        cmd_joint_pose = command[:3].copy()
+        # cmd_joint_pose[3:6] = cmd_joint_pose[3:6] / np.pi * 180  # radians -> degrees
         # 4. Read current robot pose
         pose = arm.get_position()[1]
         pose[3] = pose[3] % 360
@@ -209,13 +197,13 @@ def execution_loop():
         # 5. Smoothly interpolate toward target joint pose
         #interpolate_action(state, cmd_joint_pose)
         # 6. Execute gripper action
-        cmd_gripper_pose = np.clip(command[6] * -860 + 850, 0, 850)
+        cmd_gripper_pose = np.clip(command[3] * -860 + 850, 0, 850)
         #arm.set_gripper_position(cmd_gripper_pose)
 
         # print command
-        print("command")
-        print(pose)
-        print(cmd_joint_pose)
+        # print("command")
+        # print(pose)
+        # print(cmd_joint_pose)
 
         time_left = DT - (time.perf_counter() - t0)
         
