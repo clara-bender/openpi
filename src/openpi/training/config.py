@@ -252,7 +252,7 @@ class LeRobotXarmDataConfig(DataConfigFactory):
             outputs=[xarm_policy.XarmOutputs()],
         )
         
-        delta_action_mask = _transforms.make_bool_mask(4)
+        delta_action_mask = _transforms.make_bool_mask(3, -1)
         data_transforms = data_transforms.push(
             inputs=[_transforms.DeltaActions(delta_action_mask)],
             outputs=[_transforms.AbsoluteActions(delta_action_mask)],
@@ -613,13 +613,13 @@ _CONFIGS = [
         ),
         data=LeRobotXarmDataConfig(
             # Replace with your custom Xarm LeRobot dataset repo id.
-            repo_id="clara/follow_hand_no_delay_reduced_actions",  # change this
+            repo_id="clara/follow_hand_delay_reduced_actions_352",  # change this
             base_config=DataConfig(prompt_from_task=True),
             assets=AssetsConfig(
                 # Comput norm stats of the dataset using-> uv run scripts/compute_norm_stats.py --config-name pi05_xarm_finetune
                 # Then possibly use those norm stats and change below
                 assets_dir="/home/admin/openpi/assets/pi05_xarm_finetune/", # this might not be necessary
-                asset_id="clara/follow_hand_no_delay_reduced_actions",
+                asset_id="clara/follow_hand_delay_reduced_actions_352",
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"), #check this

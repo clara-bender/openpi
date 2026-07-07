@@ -72,6 +72,9 @@ def create_trained_policy(
         except ImportError:
             pytorch_device = "cpu"
 
+    print(train_config.model)
+    print("action_dim:", train_config.model.action_dim)
+
     return _policy.Policy(
         model,
         transforms=[
