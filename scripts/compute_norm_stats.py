@@ -99,8 +99,6 @@ def main(config_name: str, max_frames: int | None = None):
             data_config, config.model.action_horizon, config.batch_size, config.model, config.num_workers, max_frames
         )
 
-    print(f"********************************NUM_BATCHES:{num_batches}")
-    num_batches = 1
     keys = ["state", "actions"]
     stats = {key: normalize.RunningStats() for key in keys}
 
@@ -110,7 +108,7 @@ def main(config_name: str, max_frames: int | None = None):
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
 
-    output_path = config.assets_dirs / data_config.repo_id
+    output_path = config.assets_dirs / data_config.asset_id
     print(f"Writing stats to: {output_path}")
     normalize.save(output_path, norm_stats)
 
